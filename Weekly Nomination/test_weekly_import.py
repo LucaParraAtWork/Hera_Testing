@@ -50,6 +50,21 @@ TEST_CASES = [
         "desc":   "Overwrite – type 2 trailer on slots 7 / 15 / 35 (V2)",
     },
     {
+        "id":     "Nom_WN_05",
+        "file":   "Messer_Nomination_Week26.csv",
+        "expect": "FAIL",
+        "desc":   "Overwrite weekly nomination after deadline – Week 26/2026 is "
+                  "already in the past relative to today, so no success "
+                  "confirmation should appear",
+        # Week 26/2026 is a fixed past week (unlike every other case here,
+        # which targets the shared future TARGET_WEEK/TARGET_YEAR).
+        "week":   26,
+        "year":   2026,
+        # Use the stricter detector: for this case "no success toast" IS the
+        # expected/correct outcome, even if Hera doesn't raise a loud error.
+        "strict_no_success": True,
+    },
+    {
         "id":     "NEG_03",
         "file":   "Virya_Nomination_Week20_NEG03_ShiftedTimes.csv",
         "expect": "FAIL",
@@ -335,6 +350,52 @@ def _detect_import_result(page, modal) -> tuple[str, str]:
     return "?", "Could not determine result automatically"
 
 
+def _detect_success_toast_only(page, modal) -> tuple[str, str]:
+    """Stricter variant for 'should be silently blocked' cases (e.g. importing
+    after the nomination deadline has passed): Hera may decline without
+    raising a loud error, so the thing to verify is that the normal success
+    confirmation is ABSENT, not merely that no error text appeared. Only
+    returns PASS if an explicit success toast/keyword is actually observed —
+    unlike _detect_import_result, a cleanly-closed modal with nothing found
+    is NOT treated as success here."""
+    SUCCESS_KEYWORDS = ["success", "uploaded", "import complete"]
+    ERROR_KEYWORDS = [
+        "error", "exception", "invalid", "failed", "not valid",
+        "rejected", "cannot", "unexpected", "warning", "unrecognized",
+        "incorrect", "wrong", "bad request", "400", "500", "deadline",
+    ]
+
+    try:
+        if modal.is_visible():
+            modal_text = modal.inner_text(timeout=2000).lower()
+            if any(k in modal_text for k in ERROR_KEYWORDS):
+                return "FAIL", "Modal shows a rejection/warning message (no success toast) — deadline block confirmed."
+    except Exception:
+        pass
+
+    for sel in [".toast", ".alert", ".snackbar", ".notification",
+                "[class*='toast']", "[class*='snack']", "[class*='alert']",
+                "[class*='success']", "[class*='message']"]:
+        try:
+            el = page.locator(sel).first
+            if el.is_visible(timeout=500):
+                txt = el.inner_text(timeout=1000).lower().strip()
+                if any(k in txt for k in SUCCESS_KEYWORDS):
+                    return "PASS", (
+                        f"Success toast WAS shown despite the past deadline: "
+                        f"\"{txt[:120]}\" — Hera did not block the overwrite.")
+                if any(k in txt for k in ERROR_KEYWORDS):
+                    return "FAIL", f"Rejection toast: \"{txt[:120]}\" — deadline block confirmed."
+        except Exception:
+            pass
+
+    return "FAIL", (
+        "No success confirmation toast/message appeared — deadline block "
+        "confirmed (no explicit error either, but nothing confirms the "
+        "overwrite went through)."
+    )
+
+
 def _ask(tc_id: str, desc: str, expect: str,
          auto: str = "?", reason: str = "") -> tuple[str, str]:
     """Show auto-detected result; let the user confirm or override."""
@@ -375,7 +436,9 @@ def _wait_for_login(page, base_url: str):
 
 
 def _import_csv(page, nominations_url: str, csv_path: Path,
-                shots_dir: Path, tc_id: str) -> tuple[str, str, str]:
+                shots_dir: Path, tc_id: str,
+                target_week: int = TARGET_WEEK, target_year: int = TARGET_YEAR,
+                detect_fn=_detect_import_result) -> tuple[str, str, str]:
     """
     Navigate to the nominations page, open the import modal, upload the file,
     wait for processing, auto-detect the result, and take screenshots.
@@ -429,7 +492,7 @@ def _import_csv(page, nominations_url: str, csv_path: Path,
     page.screenshot(path=str(shots_dir / "04_after_upload_raw.png"))
 
     # Auto-detect result while modal / toasts are still visible
-    auto_result, auto_reason = _detect_import_result(page, modal)
+    auto_result, auto_reason = detect_fn(page, modal)
 
     # Dismiss modal if it's still open (close button or Escape)
     try:
@@ -445,7 +508,7 @@ def _import_csv(page, nominations_url: str, csv_path: Path,
 
     # Navigate to the target week/year to show the grid state
     try:
-        _goto_week_year(page, TARGET_WEEK, TARGET_YEAR)
+        _goto_week_year(page, target_week, target_year)
     except Exception:
         pass
 
@@ -521,8 +584,13 @@ def main():
                 continue
 
             try:
+                detect_fn = (_detect_success_toast_only if tc.get("strict_no_success")
+                             else _detect_import_result)
                 screenshot, auto_result, auto_reason = _import_csv(
-                    page, nominations_url, csv_path, shots_dir, tc["id"])
+                    page, nominations_url, csv_path, shots_dir, tc["id"],
+                    target_week=tc.get("week", TARGET_WEEK),
+                    target_year=tc.get("year", TARGET_YEAR),
+                    detect_fn=detect_fn)
                 print(f"  Screenshot saved: {screenshot}")
                 result, notes = _ask(tc["id"], tc["desc"], tc["expect"],
                                      auto=auto_result, reason=auto_reason)

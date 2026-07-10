@@ -79,6 +79,11 @@ COVERED = [
                   "than the other credited rows."),
     ("Nom_WN_03", None),
     ("Nom_WN_04", None),
+    ("Nom_WN_05", "[AUDIT 2026-07-10] New TEST_CASES entry: imports "
+                  "Messer_Nomination_Week26.csv, a fixed past week (26/2026), "
+                  "using the stricter _detect_success_toast_only() detector "
+                  "(FAIL unless an explicit success toast is found). Not yet "
+                  "run live."),
     ("Nom_WN_NEG_03", None),
     ("Nom_WN_NEG_05", None),
     ("Nom_WN_NEG_06", None),
@@ -143,6 +148,11 @@ COVERED = [
     ("Nom_WN_UI_12", None),
     ("Nom_AN_01", "[AUDIT 2026-07-03] Shares code with Nom_WN_UI_12 (_add_slot_ui) — "
                   "unambiguous match to this row's 'happy path' title."),
+    ("Nom_WN_07", "[AUDIT 2026-07-10] New NAV_01 scenario: opens the date-picker "
+                  "calendar via the current-week label (not </>), picks a day "
+                  "from an adjacent month, verifies the week updates, then "
+                  "returns to the target week and verifies no stale data. Not "
+                  "yet run live — calendar selectors are a best-effort guess."),
 
     # === Yearly Nomination ================================================
     # test_yearly_import.py (TEST_CASES order)

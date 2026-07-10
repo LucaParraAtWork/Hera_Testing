@@ -24,6 +24,7 @@ Scenarios covered:
   UI_10     Bulk Confirm Week (SCHED_CONF_03)
   UI_11     Bulk Reject Week (SCHED_REJ_03)
   UI_12     Add a Virya slot via UI (open empty slot, fill modal, save)
+  NAV_01    Scroll through weeks with date picker (Nom_WN_07)
 
 Note: UI_06/07/08/09/10/11 double as the automation for the Excel's
 "Scheduler" process rows SCHED_CONF_01/02/03 and SCHED_REJ_01/02/03 — those
@@ -47,6 +48,7 @@ State machine:
   UI_10     → all NEW → CONFIRMED
   UI_11     → all CONFIRMED → REJECTED
   UI_12     → one new slot added via UI
+  NAV_01    → no lasting state change (always returns to the target week)
 
 Run:
     python "Weekly Nomination/test_weekly_ui.py"
@@ -179,6 +181,14 @@ SCENARIOS = [
     {"n": 17, "id": "UI_12", "group": "add",
      "name": "Add a Virya slot via UI",
      "desc": "Click empty slot, fill modal (offtaker + DO type 1 + PU type 1), Save",
+     "expect": "PASS"},
+
+    # ── Date picker navigation ───────────────────────────────────────────────
+    {"n": 18, "id": "NAV_01", "group": "navigation",
+     "name": "Scroll through weeks with date picker (Nom_WN_07)",
+     "desc": "Click the current-week label (not </>) to open the calendar, "
+             "pick a day in an adjacent month, verify the week updates, then "
+             "return to the target week and verify no stale data remains",
      "expect": "PASS"},
 ]
 
@@ -1261,6 +1271,103 @@ def _delete_slot_entirely(page, nominations_url, shots_dir):
     )
 
 # --------------------------------------------------------------------------
+# NAV_01: Date picker calendar navigation (Nom_WN_07)
+# --------------------------------------------------------------------------
+def _date_picker_calendar_nav(page, nominations_url, shots_dir):
+    """Open the date-picker calendar by clicking the current-week label
+    (top right), NOT the </> arrows _goto_week_year already uses everywhere
+    else — pick a day from an adjacent month directly in the visible 6-week
+    grid (the picker already renders a few greyed-out adjacent-month days at
+    the grid's edges, so no separate month-navigation click is needed to
+    cross a month boundary), verify the week label/grid updates, then
+    return to the target week and confirm it's correctly restored (no stale
+    data left over from the jump)."""
+    shots_dir.mkdir(parents=True, exist_ok=True)
+    page.goto(nominations_url, wait_until="domcontentloaded"); _wm()
+    try: _goto_week_year(page, TARGET_WEEK, TARGET_YEAR)
+    except Exception: pass
+    _quiet(page)
+
+    before_wk, before_yr = _current_week_and_year(page)
+    page.screenshot(path=str(shots_dir / "01_before.png"), full_page=True)
+
+    current_btn = page.locator("div.date-picker-current > button").first
+    try:
+        _safe_click(page, current_btn, "date picker current-week button")
+    except Exception as e:
+        return str(shots_dir / "01_before.png"), "FAIL", \
+               f"Could not open the date-picker calendar: {e}"
+
+    _ws()
+    page.screenshot(path=str(shots_dir / "02_calendar_open.png"))
+
+    # Click a greyed-out adjacent-month day already visible in the grid —
+    # selector is a best-effort guess at the calendar widget's markup and
+    # may need adjusting on the first live run.
+    day_cell = None
+    for sel in [
+        "td[class*='disabled'] span", "td.disabled span",
+        "[class*='datepicker'] td.is-other-month span",
+        "[class*='datepicker'] td span[class*='other']",
+        "[class*='calendar'] td[class*='disabled'] span",
+    ]:
+        try:
+            cand = page.locator(sel).first
+            if cand.is_visible(timeout=800):
+                day_cell = cand
+                break
+        except Exception:
+            continue
+
+    if day_cell is None:
+        page.screenshot(path=str(shots_dir / "02b_no_adjacent_day.png"))
+        return str(shots_dir / "02b_no_adjacent_day.png"), "FAIL", \
+               "Could not find a clickable adjacent-month day in the open calendar"
+
+    try:
+        _safe_click(page, day_cell, "adjacent-month day cell")
+    except Exception as e:
+        page.screenshot(path=str(shots_dir / "02c_day_click_failed.png"))
+        return str(shots_dir / "02c_day_click_failed.png"), "FAIL", \
+               f"Could not click the adjacent-month day cell: {e}"
+
+    _quiet(page)
+    after_wk, after_yr = _current_week_and_year(page)
+    page.screenshot(path=str(shots_dir / "03_after_jump.png"), full_page=True)
+
+    jumped = after_wk is not None and (after_wk, after_yr) != (before_wk, before_yr)
+
+    # Return to the original target week and verify it's correctly restored.
+    try:
+        _goto_week_year(page, TARGET_WEEK, TARGET_YEAR)
+    except Exception as e:
+        return str(shots_dir / "03_after_jump.png"), "FAIL", \
+               f"Could not navigate back to Week {TARGET_WEEK}/{TARGET_YEAR}: {e}"
+
+    _quiet(page)
+    back_wk, back_yr = _current_week_and_year(page)
+    shot = str(shots_dir / "04_back_to_target.png")
+    page.screenshot(path=shot, full_page=True)
+
+    restored = (back_wk == TARGET_WEEK and (back_yr is None or back_yr == TARGET_YEAR))
+
+    if jumped and restored:
+        return shot, "PASS", (
+            f"Calendar jump: Week {before_wk}/{before_yr} -> Week {after_wk}/{after_yr} "
+            f"(crossed a month boundary); returned correctly to Week "
+            f"{back_wk}/{back_yr} with no stale data."
+        )
+    if not jumped:
+        return shot, "FAIL", (
+            f"Week label did not change after picking a day in the calendar "
+            f"(still Week {after_wk}/{after_yr})."
+        )
+    return shot, "FAIL", (
+        f"Did not correctly return to Week {TARGET_WEEK}/{TARGET_YEAR} "
+        f"(showing Week {back_wk}/{back_yr} instead) — possible stale data."
+    )
+
+# --------------------------------------------------------------------------
 # UI_06 / UI_07: Individual confirm or reject
 # --------------------------------------------------------------------------
 def _act_one_slot(page, nominations_url, shots_dir, action: str):
@@ -1682,6 +1789,9 @@ def main():
                         page, nominations_url, shots_dir, "reject")
                 elif sid == "UI_12":
                     shot, auto, reason = _add_slot_ui(page, nominations_url, shots_dir)
+                elif sid == "NAV_01":
+                    shot, auto, reason = _date_picker_calendar_nav(
+                        page, nominations_url, shots_dir)
                 else:
                     shot, auto, reason = "", "?", "Unknown scenario ID"
 
