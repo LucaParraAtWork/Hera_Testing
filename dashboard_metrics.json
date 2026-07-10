@@ -1,0 +1,106 @@
+{
+    "Plant_Summary": {
+        "Total_H2_Delivered_kg": 19089.08,
+        "Energy_Flows_MWh": {
+            "Grid_Electricity": 1042.67,
+            "Gas_Injection": 501.14,
+            "Truck_Load": 209.22
+        },
+        "Operational_Costs_Eur": {
+            "Grid_Electricity": 104266.81
+        },
+        "Revenues_Eur": {
+            "Gas_Market_Sales": 15034.07,
+            "aFRR_Capacity": 0.0
+        },
+        "Financial_Summary": {
+            "Net_Position_Eur": 89065.79,
+            "Net_Unit_Cost_Eur_per_MWh": 425.7,
+            "Net_Unit_Cost_Eur_per_kg": 4.67
+        }
+    },
+    "Loading_Bays": {
+        "Loading 1": {
+            "Total_H2_Delivered_kg": 0.0,
+            "Energy_Flows_MWh": {
+                "Grid_Electricity": 416.21,
+                "Gas_Injection": 250.22,
+                "Truck_Load": 0.0
+            },
+            "Operational_Costs_Eur": {
+                "Grid_Electricity": 41621.27
+            },
+            "Revenues_Eur": {
+                "Gas_Market_Sales": 7506.71,
+                "aFRR_Capacity": 0.0
+            },
+            "Financial_Summary": {
+                "Net_Position_Eur": 34114.55,
+                "Net_Unit_Cost_Eur_per_MWh": 0.0,
+                "Net_Unit_Cost_Eur_per_kg": 0.0
+            }
+        },
+        "Loading 2": {
+            "Total_H2_Delivered_kg": 4054.86,
+            "Energy_Flows_MWh": {
+                "Grid_Electricity": 624.39,
+                "Gas_Injection": 249.59,
+                "Truck_Load": 209.22
+            },
+            "Operational_Costs_Eur": {
+                "Grid_Electricity": 62439.06
+            },
+            "Revenues_Eur": {
+                "Gas_Market_Sales": 7487.82,
+                "aFRR_Capacity": 0.0
+            },
+            "Financial_Summary": {
+                "Net_Position_Eur": 54951.24,
+                "Net_Unit_Cost_Eur_per_MWh": 262.64,
+                "Net_Unit_Cost_Eur_per_kg": 13.55
+            }
+        }
+    },
+    "Offtakers": {
+        "Offtaker_Loading 1": {
+            "Total_H2_Delivered_kg": 0.0,
+            "Energy_Flows_MWh": {
+                "Grid_Electricity": 416.21,
+                "Gas_Injection": 250.22,
+                "Truck_Load": 0.0
+            },
+            "Operational_Costs_Eur": {
+                "Grid_Electricity": 41621.27
+            },
+            "Revenues_Eur": {
+                "Gas_Market_Sales": 7506.71,
+                "aFRR_Capacity": 0.0
+            },
+            "Financial_Summary": {
+                "Net_Position_Eur": 34114.55,
+                "Net_Unit_Cost_Eur_per_MWh": 0.0,
+                "Net_Unit_Cost_Eur_per_kg": 0.0
+            }
+        },
+        "Offtaker_Loading 2": {
+            "Total_H2_Delivered_kg": 4054.86,
+            "Energy_Flows_MWh": {
+                "Grid_Electricity": 624.39,
+                "Gas_Injection": 249.59,
+                "Truck_Load": 209.22
+            },
+            "Operational_Costs_Eur": {
+                "Grid_Electricity": 62439.06
+            },
+            "Revenues_Eur": {
+                "Gas_Market_Sales": 7487.82,
+                "aFRR_Capacity": 0.0
+            },
+            "Financial_Summary": {
+                "Net_Position_Eur": 54951.24,
+                "Net_Unit_Cost_Eur_per_MWh": 262.64,
+                "Net_Unit_Cost_Eur_per_kg": 13.55
+            }
+        }
+    }
+}

@@ -1,0 +1,76 @@
+{
+  "url": "https://heragatewaydev.azurewebsites.net/api/CostsBreakdownScreen/GetCostsBreakdownScreenAsync",
+  "method": "POST",
+  "status": 200,
+  "headers": {
+    "transfer-encoding": "chunked",
+    "content-encoding": "gzip",
+    "access-control-allow-credentials": "true",
+    "access-control-allow-origin": "https://herawebdev.azurewebsites.net",
+    "date": "Mon, 20 Apr 2026 14:01:04 GMT",
+    "content-type": "application/json; charset=utf-8",
+    "vary": "Accept-Encoding",
+    "server": "Microsoft-IIS/10.0",
+    "x-powered-by": "ASP.NET"
+  },
+  "data": {
+    "energySummaries": [
+      {
+        "offtakerName": "Virya Energy NV",
+        "electricityConsumed": 35,
+        "truckFilling": 0,
+        "voluntaryGasInjected": 0,
+        "gasInjectedDueToMsol": 35,
+        "electricityCostsForTruckFilling": 0,
+        "electricityCostsForGasInjection": 0,
+        "gasInjectionRevenues": 0,
+        "msolCoverage": 2450,
+        "netCosts": 2450
+      },
+      {
+        "offtakerName": "Messer Belgium NV",
+        "electricityConsumed": 260.8,
+        "truckFilling": 225.8,
+        "voluntaryGasInjected": 0,
+        "gasInjectedDueToMsol": 35,
+        "electricityCostsForTruckFilling": 22580,
+        "electricityCostsForGasInjection": 0,
+        "gasInjectionRevenues": 0,
+        "msolCoverage": 2450,
+        "netCosts": 25030
+      },
+      {
+        "offtakerName": "Total Planning",
+        "electricityConsumed": 295.8,
+        "truckFilling": 225.8,
+        "voluntaryGasInjected": 0,
+        "gasInjectedDueToMsol": 70,
+        "electricityCostsForTruckFilling": 22580,
+        "electricityCostsForGasInjection": 0,
+        "gasInjectionRevenues": 0,
+        "msolCoverage": 4900,
+        "netCosts": 27480
+      }
+    ],
+    "netCommodityCostForecasts": [
+      {
+        "name": "Virya Energy NV",
+        "value": 2.758,
+        "color": "#175649"
+      },
+      {
+        "name": "Messer Belgium NV",
+        "value": 3.781372699386503,
+        "color": "#4F81BD"
+      },
+      {
+        "name": "Total Planning",
+        "value": 3.660283975659229,
+        "color": "#4287f5"
+      }
+    ],
+    "timeZoneId": "Europe/Brussels",
+    "pricingUnit": "EuroPerKg",
+    "staleSince": null
+  }
+}

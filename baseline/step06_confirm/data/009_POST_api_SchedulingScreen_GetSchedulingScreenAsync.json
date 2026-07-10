@@ -1,0 +1,981 @@
+{
+  "url": "https://heragatewaydev.azurewebsites.net/api/SchedulingScreen/GetSchedulingScreenAsync",
+  "method": "POST",
+  "status": 200,
+  "headers": {
+    "transfer-encoding": "chunked",
+    "content-encoding": "gzip",
+    "access-control-allow-credentials": "true",
+    "access-control-allow-origin": "https://herawebdev.azurewebsites.net",
+    "date": "Mon, 20 Apr 2026 14:00:28 GMT",
+    "content-type": "application/json; charset=utf-8",
+    "vary": "Accept-Encoding",
+    "server": "Microsoft-IIS/10.0",
+    "x-powered-by": "ASP.NET"
+  },
+  "data": {
+    "availableCompanies": [
+      {
+        "id": "23441204-380b-4390-b51b-1555e697fec4",
+        "name": "Virya Energy NV",
+        "primaryColor": "#175649",
+        "secondaryColor": null,
+        "tertiaryColor": null
+      },
+      {
+        "id": "234c2156-c989-4885-847e-f29eb13c789f",
+        "name": "Messer Belgium NV",
+        "primaryColor": "#4F81BD",
+        "secondaryColor": null,
+        "tertiaryColor": null
+      }
+    ],
+    "availableTrailerTypes": [
+      {
+        "id": "30430a1c-733e-4e9d-9d9d-91abe705f3bc",
+        "name": "Type 2"
+      },
+      {
+        "id": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+        "name": "Type 1"
+      }
+    ],
+    "availableScheduledTransferTypes": [
+      "PickUp",
+      "DropOff"
+    ],
+    "availableScheduledTransferStatus": [
+      "New",
+      "Confirmed",
+      "Rejected",
+      "Abandoned"
+    ],
+    "timeZoneId": "Europe/Brussels",
+    "selectedCompanyIds": [],
+    "start": "2026-04-26T22:00:00Z",
+    "end": "2026-05-03T22:00:00Z",
+    "slots": [
+      {
+        "start": "2026-04-27T00:45:00Z",
+        "end": "2026-04-27T02:15:00Z",
+        "startActivity": "2026-04-27T00:45:00Z",
+        "endActivity": "2026-04-27T02:45:00Z",
+        "startArrivalWindow": "2026-04-27T00:45:00Z",
+        "endArrivalWindow": "2026-04-27T02:15:00Z",
+        "scheduledTransfers": [
+          {
+            "id": "97bcd696-fad9-4e4d-cefd-08de9ee2a21e",
+            "earliest": "2026-04-27T00:45:00Z",
+            "latest": "2026-04-27T02:15:00Z",
+            "type": "DropOff",
+            "status": "Confirmed",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          }
+        ]
+      },
+      {
+        "start": "2026-04-27T03:00:00Z",
+        "end": "2026-04-27T04:30:00Z",
+        "startActivity": "2026-04-27T03:00:00Z",
+        "endActivity": "2026-04-27T05:00:00Z",
+        "startArrivalWindow": "2026-04-27T03:00:00Z",
+        "endArrivalWindow": "2026-04-27T04:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-27T05:15:00Z",
+        "end": "2026-04-27T06:45:00Z",
+        "startActivity": "2026-04-27T05:15:00Z",
+        "endActivity": "2026-04-27T07:15:00Z",
+        "startArrivalWindow": "2026-04-27T05:15:00Z",
+        "endArrivalWindow": "2026-04-27T06:45:00Z",
+        "scheduledTransfers": [
+          {
+            "id": "f52f632e-a5b9-401a-cefe-08de9ee2a21e",
+            "earliest": "2026-04-27T05:15:00Z",
+            "latest": "2026-04-27T06:45:00Z",
+            "type": "DropOff",
+            "status": "Confirmed",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          },
+          {
+            "id": "4795d6f2-e51f-4815-ceff-08de9ee2a21e",
+            "earliest": "2026-04-27T05:30:00Z",
+            "latest": "2026-04-27T07:00:00Z",
+            "type": "Pickup",
+            "status": "Confirmed",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          }
+        ]
+      },
+      {
+        "start": "2026-04-27T07:30:00Z",
+        "end": "2026-04-27T09:00:00Z",
+        "startActivity": "2026-04-27T07:30:00Z",
+        "endActivity": "2026-04-27T09:30:00Z",
+        "startArrivalWindow": "2026-04-27T07:30:00Z",
+        "endArrivalWindow": "2026-04-27T09:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-27T09:45:00Z",
+        "end": "2026-04-27T11:15:00Z",
+        "startActivity": "2026-04-27T09:45:00Z",
+        "endActivity": "2026-04-27T11:45:00Z",
+        "startArrivalWindow": "2026-04-27T09:45:00Z",
+        "endArrivalWindow": "2026-04-27T11:15:00Z",
+        "scheduledTransfers": [
+          {
+            "id": "c66a6eb9-ae76-4264-cf00-08de9ee2a21e",
+            "earliest": "2026-04-27T09:45:00Z",
+            "latest": "2026-04-27T11:15:00Z",
+            "type": "DropOff",
+            "status": "New",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          },
+          {
+            "id": "0c010dcd-c52f-4538-cf01-08de9ee2a21e",
+            "earliest": "2026-04-27T10:00:00Z",
+            "latest": "2026-04-27T11:30:00Z",
+            "type": "Pickup",
+            "status": "New",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          }
+        ]
+      },
+      {
+        "start": "2026-04-27T12:00:00Z",
+        "end": "2026-04-27T13:30:00Z",
+        "startActivity": "2026-04-27T12:00:00Z",
+        "endActivity": "2026-04-27T14:00:00Z",
+        "startArrivalWindow": "2026-04-27T12:00:00Z",
+        "endArrivalWindow": "2026-04-27T13:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-27T14:15:00Z",
+        "end": "2026-04-27T15:45:00Z",
+        "startActivity": "2026-04-27T14:15:00Z",
+        "endActivity": "2026-04-27T16:15:00Z",
+        "startArrivalWindow": "2026-04-27T14:15:00Z",
+        "endArrivalWindow": "2026-04-27T15:45:00Z",
+        "scheduledTransfers": [
+          {
+            "id": "2da293a8-5f26-4395-cf02-08de9ee2a21e",
+            "earliest": "2026-04-27T14:15:00Z",
+            "latest": "2026-04-27T15:45:00Z",
+            "type": "DropOff",
+            "status": "New",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          },
+          {
+            "id": "71c51b00-ea55-408f-cf03-08de9ee2a21e",
+            "earliest": "2026-04-27T14:30:00Z",
+            "latest": "2026-04-27T16:00:00Z",
+            "type": "Pickup",
+            "status": "New",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          }
+        ]
+      },
+      {
+        "start": "2026-04-27T16:30:00Z",
+        "end": "2026-04-27T18:00:00Z",
+        "startActivity": "2026-04-27T16:30:00Z",
+        "endActivity": "2026-04-27T18:30:00Z",
+        "startArrivalWindow": "2026-04-27T16:30:00Z",
+        "endArrivalWindow": "2026-04-27T18:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-27T18:45:00Z",
+        "end": "2026-04-27T20:15:00Z",
+        "startActivity": "2026-04-27T18:45:00Z",
+        "endActivity": "2026-04-27T20:45:00Z",
+        "startArrivalWindow": "2026-04-27T18:45:00Z",
+        "endArrivalWindow": "2026-04-27T20:15:00Z",
+        "scheduledTransfers": [
+          {
+            "id": "1e244be5-1d7d-4a99-cf04-08de9ee2a21e",
+            "earliest": "2026-04-27T18:45:00Z",
+            "latest": "2026-04-27T20:15:00Z",
+            "type": "DropOff",
+            "status": "New",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          },
+          {
+            "id": "60fb2ba9-85da-4c23-cf05-08de9ee2a21e",
+            "earliest": "2026-04-27T19:00:00Z",
+            "latest": "2026-04-27T20:30:00Z",
+            "type": "Pickup",
+            "status": "New",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          }
+        ]
+      },
+      {
+        "start": "2026-04-27T21:00:00Z",
+        "end": "2026-04-27T22:30:00Z",
+        "startActivity": "2026-04-27T21:00:00Z",
+        "endActivity": "2026-04-27T23:00:00Z",
+        "startArrivalWindow": "2026-04-27T21:00:00Z",
+        "endArrivalWindow": "2026-04-27T22:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-27T23:15:00Z",
+        "end": "2026-04-28T00:45:00Z",
+        "startActivity": "2026-04-27T23:15:00Z",
+        "endActivity": "2026-04-28T01:15:00Z",
+        "startArrivalWindow": "2026-04-27T23:15:00Z",
+        "endArrivalWindow": "2026-04-28T00:45:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-28T01:30:00Z",
+        "end": "2026-04-28T03:00:00Z",
+        "startActivity": "2026-04-28T01:30:00Z",
+        "endActivity": "2026-04-28T03:30:00Z",
+        "startArrivalWindow": "2026-04-28T01:30:00Z",
+        "endArrivalWindow": "2026-04-28T03:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-28T03:45:00Z",
+        "end": "2026-04-28T05:15:00Z",
+        "startActivity": "2026-04-28T03:45:00Z",
+        "endActivity": "2026-04-28T05:45:00Z",
+        "startArrivalWindow": "2026-04-28T03:45:00Z",
+        "endArrivalWindow": "2026-04-28T05:15:00Z",
+        "scheduledTransfers": [
+          {
+            "id": "7c9bfae4-5bfa-478d-cf06-08de9ee2a21e",
+            "earliest": "2026-04-28T03:45:00Z",
+            "latest": "2026-04-28T05:15:00Z",
+            "type": "DropOff",
+            "status": "Confirmed",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          },
+          {
+            "id": "6ac4fc38-e177-48df-cf07-08de9ee2a21e",
+            "earliest": "2026-04-28T04:00:00Z",
+            "latest": "2026-04-28T05:30:00Z",
+            "type": "Pickup",
+            "status": "Confirmed",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          }
+        ]
+      },
+      {
+        "start": "2026-04-28T06:00:00Z",
+        "end": "2026-04-28T07:30:00Z",
+        "startActivity": "2026-04-28T06:00:00Z",
+        "endActivity": "2026-04-28T08:00:00Z",
+        "startArrivalWindow": "2026-04-28T06:00:00Z",
+        "endArrivalWindow": "2026-04-28T07:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-28T08:15:00Z",
+        "end": "2026-04-28T09:45:00Z",
+        "startActivity": "2026-04-28T08:15:00Z",
+        "endActivity": "2026-04-28T10:15:00Z",
+        "startArrivalWindow": "2026-04-28T08:15:00Z",
+        "endArrivalWindow": "2026-04-28T09:45:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-28T10:30:00Z",
+        "end": "2026-04-28T12:00:00Z",
+        "startActivity": "2026-04-28T10:30:00Z",
+        "endActivity": "2026-04-28T12:30:00Z",
+        "startArrivalWindow": "2026-04-28T10:30:00Z",
+        "endArrivalWindow": "2026-04-28T12:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-28T12:45:00Z",
+        "end": "2026-04-28T14:15:00Z",
+        "startActivity": "2026-04-28T12:45:00Z",
+        "endActivity": "2026-04-28T14:45:00Z",
+        "startArrivalWindow": "2026-04-28T12:45:00Z",
+        "endArrivalWindow": "2026-04-28T14:15:00Z",
+        "scheduledTransfers": [
+          {
+            "id": "2fa44d18-f1d0-499f-cf08-08de9ee2a21e",
+            "earliest": "2026-04-28T12:45:00Z",
+            "latest": "2026-04-28T14:15:00Z",
+            "type": "DropOff",
+            "status": "New",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          },
+          {
+            "id": "33758cfb-3ba2-4e8c-cf09-08de9ee2a21e",
+            "earliest": "2026-04-28T13:00:00Z",
+            "latest": "2026-04-28T14:30:00Z",
+            "type": "Pickup",
+            "status": "New",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          }
+        ]
+      },
+      {
+        "start": "2026-04-28T15:00:00Z",
+        "end": "2026-04-28T16:30:00Z",
+        "startActivity": "2026-04-28T15:00:00Z",
+        "endActivity": "2026-04-28T17:00:00Z",
+        "startArrivalWindow": "2026-04-28T15:00:00Z",
+        "endArrivalWindow": "2026-04-28T16:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-28T17:15:00Z",
+        "end": "2026-04-28T18:45:00Z",
+        "startActivity": "2026-04-28T17:15:00Z",
+        "endActivity": "2026-04-28T19:15:00Z",
+        "startArrivalWindow": "2026-04-28T17:15:00Z",
+        "endArrivalWindow": "2026-04-28T18:45:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-28T19:30:00Z",
+        "end": "2026-04-28T21:00:00Z",
+        "startActivity": "2026-04-28T19:30:00Z",
+        "endActivity": "2026-04-28T21:30:00Z",
+        "startArrivalWindow": "2026-04-28T19:30:00Z",
+        "endArrivalWindow": "2026-04-28T21:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-28T21:45:00Z",
+        "end": "2026-04-28T23:15:00Z",
+        "startActivity": "2026-04-28T21:45:00Z",
+        "endActivity": "2026-04-28T23:45:00Z",
+        "startArrivalWindow": "2026-04-28T21:45:00Z",
+        "endArrivalWindow": "2026-04-28T23:15:00Z",
+        "scheduledTransfers": [
+          {
+            "id": "5916df99-7a54-4198-cf0a-08de9ee2a21e",
+            "earliest": "2026-04-28T21:45:00Z",
+            "latest": "2026-04-28T23:15:00Z",
+            "type": "DropOff",
+            "status": "Confirmed",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          },
+          {
+            "id": "a09ea130-c7eb-495a-cf0b-08de9ee2a21e",
+            "earliest": "2026-04-28T22:00:00Z",
+            "latest": "2026-04-28T23:30:00Z",
+            "type": "Pickup",
+            "status": "Confirmed",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          }
+        ]
+      },
+      {
+        "start": "2026-04-29T00:00:00Z",
+        "end": "2026-04-29T01:30:00Z",
+        "startActivity": "2026-04-29T00:00:00Z",
+        "endActivity": "2026-04-29T02:00:00Z",
+        "startArrivalWindow": "2026-04-29T00:00:00Z",
+        "endArrivalWindow": "2026-04-29T01:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-29T02:15:00Z",
+        "end": "2026-04-29T03:45:00Z",
+        "startActivity": "2026-04-29T02:15:00Z",
+        "endActivity": "2026-04-29T04:15:00Z",
+        "startArrivalWindow": "2026-04-29T02:15:00Z",
+        "endArrivalWindow": "2026-04-29T03:45:00Z",
+        "scheduledTransfers": [
+          {
+            "id": "1db94e4e-5f69-44eb-cf0c-08de9ee2a21e",
+            "earliest": "2026-04-29T02:15:00Z",
+            "latest": "2026-04-29T03:45:00Z",
+            "type": "DropOff",
+            "status": "Confirmed",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          },
+          {
+            "id": "dc091277-c311-48fe-cf0d-08de9ee2a21e",
+            "earliest": "2026-04-29T02:30:00Z",
+            "latest": "2026-04-29T04:00:00Z",
+            "type": "Pickup",
+            "status": "Confirmed",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          }
+        ]
+      },
+      {
+        "start": "2026-04-29T04:30:00Z",
+        "end": "2026-04-29T06:00:00Z",
+        "startActivity": "2026-04-29T04:30:00Z",
+        "endActivity": "2026-04-29T06:30:00Z",
+        "startArrivalWindow": "2026-04-29T04:30:00Z",
+        "endArrivalWindow": "2026-04-29T06:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-29T06:45:00Z",
+        "end": "2026-04-29T08:15:00Z",
+        "startActivity": "2026-04-29T06:45:00Z",
+        "endActivity": "2026-04-29T08:45:00Z",
+        "startArrivalWindow": "2026-04-29T06:45:00Z",
+        "endArrivalWindow": "2026-04-29T08:15:00Z",
+        "scheduledTransfers": [
+          {
+            "id": "0490b33a-3073-4f1d-cf0e-08de9ee2a21e",
+            "earliest": "2026-04-29T06:45:00Z",
+            "latest": "2026-04-29T08:15:00Z",
+            "type": "DropOff",
+            "status": "Confirmed",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          },
+          {
+            "id": "18c5721e-07bf-479b-cf0f-08de9ee2a21e",
+            "earliest": "2026-04-29T07:00:00Z",
+            "latest": "2026-04-29T08:30:00Z",
+            "type": "Pickup",
+            "status": "Confirmed",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          }
+        ]
+      },
+      {
+        "start": "2026-04-29T09:00:00Z",
+        "end": "2026-04-29T10:30:00Z",
+        "startActivity": "2026-04-29T09:00:00Z",
+        "endActivity": "2026-04-29T11:00:00Z",
+        "startArrivalWindow": "2026-04-29T09:00:00Z",
+        "endArrivalWindow": "2026-04-29T10:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-29T11:15:00Z",
+        "end": "2026-04-29T12:45:00Z",
+        "startActivity": "2026-04-29T11:15:00Z",
+        "endActivity": "2026-04-29T13:15:00Z",
+        "startArrivalWindow": "2026-04-29T11:15:00Z",
+        "endArrivalWindow": "2026-04-29T12:45:00Z",
+        "scheduledTransfers": [
+          {
+            "id": "ae267326-54b2-460d-cf10-08de9ee2a21e",
+            "earliest": "2026-04-29T11:30:00Z",
+            "latest": "2026-04-29T13:00:00Z",
+            "type": "Pickup",
+            "status": "New",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          }
+        ]
+      },
+      {
+        "start": "2026-04-29T13:30:00Z",
+        "end": "2026-04-29T15:00:00Z",
+        "startActivity": "2026-04-29T13:30:00Z",
+        "endActivity": "2026-04-29T15:30:00Z",
+        "startArrivalWindow": "2026-04-29T13:30:00Z",
+        "endArrivalWindow": "2026-04-29T15:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-29T15:45:00Z",
+        "end": "2026-04-29T17:15:00Z",
+        "startActivity": "2026-04-29T15:45:00Z",
+        "endActivity": "2026-04-29T17:45:00Z",
+        "startArrivalWindow": "2026-04-29T15:45:00Z",
+        "endArrivalWindow": "2026-04-29T17:15:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-29T18:00:00Z",
+        "end": "2026-04-29T19:30:00Z",
+        "startActivity": "2026-04-29T18:00:00Z",
+        "endActivity": "2026-04-29T20:00:00Z",
+        "startArrivalWindow": "2026-04-29T18:00:00Z",
+        "endArrivalWindow": "2026-04-29T19:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-29T20:15:00Z",
+        "end": "2026-04-29T21:45:00Z",
+        "startActivity": "2026-04-29T20:15:00Z",
+        "endActivity": "2026-04-29T22:15:00Z",
+        "startArrivalWindow": "2026-04-29T20:15:00Z",
+        "endArrivalWindow": "2026-04-29T21:45:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-29T22:30:00Z",
+        "end": "2026-04-30T00:00:00Z",
+        "startActivity": "2026-04-29T22:30:00Z",
+        "endActivity": "2026-04-30T00:30:00Z",
+        "startArrivalWindow": "2026-04-29T22:30:00Z",
+        "endArrivalWindow": "2026-04-30T00:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-30T00:45:00Z",
+        "end": "2026-04-30T02:15:00Z",
+        "startActivity": "2026-04-30T00:45:00Z",
+        "endActivity": "2026-04-30T02:45:00Z",
+        "startArrivalWindow": "2026-04-30T00:45:00Z",
+        "endArrivalWindow": "2026-04-30T02:15:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-30T03:00:00Z",
+        "end": "2026-04-30T04:30:00Z",
+        "startActivity": "2026-04-30T03:00:00Z",
+        "endActivity": "2026-04-30T05:00:00Z",
+        "startArrivalWindow": "2026-04-30T03:00:00Z",
+        "endArrivalWindow": "2026-04-30T04:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-30T05:15:00Z",
+        "end": "2026-04-30T06:45:00Z",
+        "startActivity": "2026-04-30T05:15:00Z",
+        "endActivity": "2026-04-30T07:15:00Z",
+        "startArrivalWindow": "2026-04-30T05:15:00Z",
+        "endArrivalWindow": "2026-04-30T06:45:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-30T07:30:00Z",
+        "end": "2026-04-30T09:00:00Z",
+        "startActivity": "2026-04-30T07:30:00Z",
+        "endActivity": "2026-04-30T09:30:00Z",
+        "startArrivalWindow": "2026-04-30T07:30:00Z",
+        "endArrivalWindow": "2026-04-30T09:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-30T09:45:00Z",
+        "end": "2026-04-30T11:15:00Z",
+        "startActivity": "2026-04-30T09:45:00Z",
+        "endActivity": "2026-04-30T11:45:00Z",
+        "startArrivalWindow": "2026-04-30T09:45:00Z",
+        "endArrivalWindow": "2026-04-30T11:15:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-30T12:00:00Z",
+        "end": "2026-04-30T13:30:00Z",
+        "startActivity": "2026-04-30T12:00:00Z",
+        "endActivity": "2026-04-30T14:00:00Z",
+        "startArrivalWindow": "2026-04-30T12:00:00Z",
+        "endArrivalWindow": "2026-04-30T13:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-30T14:15:00Z",
+        "end": "2026-04-30T15:45:00Z",
+        "startActivity": "2026-04-30T14:15:00Z",
+        "endActivity": "2026-04-30T16:15:00Z",
+        "startArrivalWindow": "2026-04-30T14:15:00Z",
+        "endArrivalWindow": "2026-04-30T15:45:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-30T16:30:00Z",
+        "end": "2026-04-30T18:00:00Z",
+        "startActivity": "2026-04-30T16:30:00Z",
+        "endActivity": "2026-04-30T18:30:00Z",
+        "startArrivalWindow": "2026-04-30T16:30:00Z",
+        "endArrivalWindow": "2026-04-30T18:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-30T18:45:00Z",
+        "end": "2026-04-30T20:15:00Z",
+        "startActivity": "2026-04-30T18:45:00Z",
+        "endActivity": "2026-04-30T20:45:00Z",
+        "startArrivalWindow": "2026-04-30T18:45:00Z",
+        "endArrivalWindow": "2026-04-30T20:15:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-30T21:00:00Z",
+        "end": "2026-04-30T22:30:00Z",
+        "startActivity": "2026-04-30T21:00:00Z",
+        "endActivity": "2026-04-30T23:00:00Z",
+        "startArrivalWindow": "2026-04-30T21:00:00Z",
+        "endArrivalWindow": "2026-04-30T22:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-04-30T23:15:00Z",
+        "end": "2026-05-01T00:45:00Z",
+        "startActivity": "2026-04-30T23:15:00Z",
+        "endActivity": "2026-05-01T01:15:00Z",
+        "startArrivalWindow": "2026-04-30T23:15:00Z",
+        "endArrivalWindow": "2026-05-01T00:45:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-01T01:30:00Z",
+        "end": "2026-05-01T03:00:00Z",
+        "startActivity": "2026-05-01T01:30:00Z",
+        "endActivity": "2026-05-01T03:30:00Z",
+        "startArrivalWindow": "2026-05-01T01:30:00Z",
+        "endArrivalWindow": "2026-05-01T03:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-01T03:45:00Z",
+        "end": "2026-05-01T05:15:00Z",
+        "startActivity": "2026-05-01T03:45:00Z",
+        "endActivity": "2026-05-01T05:45:00Z",
+        "startArrivalWindow": "2026-05-01T03:45:00Z",
+        "endArrivalWindow": "2026-05-01T05:15:00Z",
+        "scheduledTransfers": [
+          {
+            "id": "83c011f1-ef51-4f19-cf11-08de9ee2a21e",
+            "earliest": "2026-05-01T03:45:00Z",
+            "latest": "2026-05-01T05:15:00Z",
+            "type": "DropOff",
+            "status": "Confirmed",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          }
+        ]
+      },
+      {
+        "start": "2026-05-01T06:00:00Z",
+        "end": "2026-05-01T07:30:00Z",
+        "startActivity": "2026-05-01T06:00:00Z",
+        "endActivity": "2026-05-01T08:00:00Z",
+        "startArrivalWindow": "2026-05-01T06:00:00Z",
+        "endArrivalWindow": "2026-05-01T07:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-01T08:15:00Z",
+        "end": "2026-05-01T09:45:00Z",
+        "startActivity": "2026-05-01T08:15:00Z",
+        "endActivity": "2026-05-01T10:15:00Z",
+        "startArrivalWindow": "2026-05-01T08:15:00Z",
+        "endArrivalWindow": "2026-05-01T09:45:00Z",
+        "scheduledTransfers": [
+          {
+            "id": "182bb9ee-cca2-4209-cf12-08de9ee2a21e",
+            "earliest": "2026-05-01T08:15:00Z",
+            "latest": "2026-05-01T09:45:00Z",
+            "type": "DropOff",
+            "status": "Confirmed",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          },
+          {
+            "id": "e925b2b0-a1d4-4ceb-cf13-08de9ee2a21e",
+            "earliest": "2026-05-01T08:30:00Z",
+            "latest": "2026-05-01T10:00:00Z",
+            "type": "Pickup",
+            "status": "Confirmed",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          }
+        ]
+      },
+      {
+        "start": "2026-05-01T10:30:00Z",
+        "end": "2026-05-01T12:00:00Z",
+        "startActivity": "2026-05-01T10:30:00Z",
+        "endActivity": "2026-05-01T12:30:00Z",
+        "startArrivalWindow": "2026-05-01T10:30:00Z",
+        "endArrivalWindow": "2026-05-01T12:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-01T12:45:00Z",
+        "end": "2026-05-01T14:15:00Z",
+        "startActivity": "2026-05-01T12:45:00Z",
+        "endActivity": "2026-05-01T14:45:00Z",
+        "startArrivalWindow": "2026-05-01T12:45:00Z",
+        "endArrivalWindow": "2026-05-01T14:15:00Z",
+        "scheduledTransfers": [
+          {
+            "id": "d34caab5-0140-480f-cf14-08de9ee2a21e",
+            "earliest": "2026-05-01T12:45:00Z",
+            "latest": "2026-05-01T14:15:00Z",
+            "type": "DropOff",
+            "status": "New",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          },
+          {
+            "id": "08dbea14-25b4-4817-cf15-08de9ee2a21e",
+            "earliest": "2026-05-01T13:00:00Z",
+            "latest": "2026-05-01T14:30:00Z",
+            "type": "Pickup",
+            "status": "New",
+            "estimatedTrailerTypeId": "994310fa-eca6-4e5f-b310-af9fc2cfe078",
+            "companyId": "234c2156-c989-4885-847e-f29eb13c789f",
+            "plantId": "2366a2c9-8f16-4d45-8241-0665697edf1c"
+          }
+        ]
+      },
+      {
+        "start": "2026-05-01T15:00:00Z",
+        "end": "2026-05-01T16:30:00Z",
+        "startActivity": "2026-05-01T15:00:00Z",
+        "endActivity": "2026-05-01T17:00:00Z",
+        "startArrivalWindow": "2026-05-01T15:00:00Z",
+        "endArrivalWindow": "2026-05-01T16:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-01T17:15:00Z",
+        "end": "2026-05-01T18:45:00Z",
+        "startActivity": "2026-05-01T17:15:00Z",
+        "endActivity": "2026-05-01T19:15:00Z",
+        "startArrivalWindow": "2026-05-01T17:15:00Z",
+        "endArrivalWindow": "2026-05-01T18:45:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-01T19:30:00Z",
+        "end": "2026-05-01T21:00:00Z",
+        "startActivity": "2026-05-01T19:30:00Z",
+        "endActivity": "2026-05-01T21:30:00Z",
+        "startArrivalWindow": "2026-05-01T19:30:00Z",
+        "endArrivalWindow": "2026-05-01T21:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-01T21:45:00Z",
+        "end": "2026-05-01T23:15:00Z",
+        "startActivity": "2026-05-01T21:45:00Z",
+        "endActivity": "2026-05-01T23:45:00Z",
+        "startArrivalWindow": "2026-05-01T21:45:00Z",
+        "endArrivalWindow": "2026-05-01T23:15:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-02T00:00:00Z",
+        "end": "2026-05-02T01:30:00Z",
+        "startActivity": "2026-05-02T00:00:00Z",
+        "endActivity": "2026-05-02T02:00:00Z",
+        "startArrivalWindow": "2026-05-02T00:00:00Z",
+        "endArrivalWindow": "2026-05-02T01:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-02T02:15:00Z",
+        "end": "2026-05-02T03:45:00Z",
+        "startActivity": "2026-05-02T02:15:00Z",
+        "endActivity": "2026-05-02T04:15:00Z",
+        "startArrivalWindow": "2026-05-02T02:15:00Z",
+        "endArrivalWindow": "2026-05-02T03:45:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-02T04:30:00Z",
+        "end": "2026-05-02T06:00:00Z",
+        "startActivity": "2026-05-02T04:30:00Z",
+        "endActivity": "2026-05-02T06:30:00Z",
+        "startArrivalWindow": "2026-05-02T04:30:00Z",
+        "endArrivalWindow": "2026-05-02T06:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-02T06:45:00Z",
+        "end": "2026-05-02T08:15:00Z",
+        "startActivity": "2026-05-02T06:45:00Z",
+        "endActivity": "2026-05-02T08:45:00Z",
+        "startArrivalWindow": "2026-05-02T06:45:00Z",
+        "endArrivalWindow": "2026-05-02T08:15:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-02T09:00:00Z",
+        "end": "2026-05-02T10:30:00Z",
+        "startActivity": "2026-05-02T09:00:00Z",
+        "endActivity": "2026-05-02T11:00:00Z",
+        "startArrivalWindow": "2026-05-02T09:00:00Z",
+        "endArrivalWindow": "2026-05-02T10:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-02T11:15:00Z",
+        "end": "2026-05-02T12:45:00Z",
+        "startActivity": "2026-05-02T11:15:00Z",
+        "endActivity": "2026-05-02T13:15:00Z",
+        "startArrivalWindow": "2026-05-02T11:15:00Z",
+        "endArrivalWindow": "2026-05-02T12:45:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-02T13:30:00Z",
+        "end": "2026-05-02T15:00:00Z",
+        "startActivity": "2026-05-02T13:30:00Z",
+        "endActivity": "2026-05-02T15:30:00Z",
+        "startArrivalWindow": "2026-05-02T13:30:00Z",
+        "endArrivalWindow": "2026-05-02T15:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-02T15:45:00Z",
+        "end": "2026-05-02T17:15:00Z",
+        "startActivity": "2026-05-02T15:45:00Z",
+        "endActivity": "2026-05-02T17:45:00Z",
+        "startArrivalWindow": "2026-05-02T15:45:00Z",
+        "endArrivalWindow": "2026-05-02T17:15:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-02T18:00:00Z",
+        "end": "2026-05-02T19:30:00Z",
+        "startActivity": "2026-05-02T18:00:00Z",
+        "endActivity": "2026-05-02T20:00:00Z",
+        "startArrivalWindow": "2026-05-02T18:00:00Z",
+        "endArrivalWindow": "2026-05-02T19:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-02T20:15:00Z",
+        "end": "2026-05-02T21:45:00Z",
+        "startActivity": "2026-05-02T20:15:00Z",
+        "endActivity": "2026-05-02T22:15:00Z",
+        "startArrivalWindow": "2026-05-02T20:15:00Z",
+        "endArrivalWindow": "2026-05-02T21:45:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-02T22:30:00Z",
+        "end": "2026-05-03T00:00:00Z",
+        "startActivity": "2026-05-02T22:30:00Z",
+        "endActivity": "2026-05-03T00:30:00Z",
+        "startArrivalWindow": "2026-05-02T22:30:00Z",
+        "endArrivalWindow": "2026-05-03T00:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-03T00:45:00Z",
+        "end": "2026-05-03T02:15:00Z",
+        "startActivity": "2026-05-03T00:45:00Z",
+        "endActivity": "2026-05-03T02:45:00Z",
+        "startArrivalWindow": "2026-05-03T00:45:00Z",
+        "endArrivalWindow": "2026-05-03T02:15:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-03T03:00:00Z",
+        "end": "2026-05-03T04:30:00Z",
+        "startActivity": "2026-05-03T03:00:00Z",
+        "endActivity": "2026-05-03T05:00:00Z",
+        "startArrivalWindow": "2026-05-03T03:00:00Z",
+        "endArrivalWindow": "2026-05-03T04:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-03T05:15:00Z",
+        "end": "2026-05-03T06:45:00Z",
+        "startActivity": "2026-05-03T05:15:00Z",
+        "endActivity": "2026-05-03T07:15:00Z",
+        "startArrivalWindow": "2026-05-03T05:15:00Z",
+        "endArrivalWindow": "2026-05-03T06:45:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-03T07:30:00Z",
+        "end": "2026-05-03T09:00:00Z",
+        "startActivity": "2026-05-03T07:30:00Z",
+        "endActivity": "2026-05-03T09:30:00Z",
+        "startArrivalWindow": "2026-05-03T07:30:00Z",
+        "endArrivalWindow": "2026-05-03T09:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-03T09:45:00Z",
+        "end": "2026-05-03T11:15:00Z",
+        "startActivity": "2026-05-03T09:45:00Z",
+        "endActivity": "2026-05-03T11:45:00Z",
+        "startArrivalWindow": "2026-05-03T09:45:00Z",
+        "endArrivalWindow": "2026-05-03T11:15:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-03T12:00:00Z",
+        "end": "2026-05-03T13:30:00Z",
+        "startActivity": "2026-05-03T12:00:00Z",
+        "endActivity": "2026-05-03T14:00:00Z",
+        "startArrivalWindow": "2026-05-03T12:00:00Z",
+        "endArrivalWindow": "2026-05-03T13:30:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-03T14:15:00Z",
+        "end": "2026-05-03T15:45:00Z",
+        "startActivity": "2026-05-03T14:15:00Z",
+        "endActivity": "2026-05-03T16:15:00Z",
+        "startArrivalWindow": "2026-05-03T14:15:00Z",
+        "endArrivalWindow": "2026-05-03T15:45:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-03T16:30:00Z",
+        "end": "2026-05-03T18:00:00Z",
+        "startActivity": "2026-05-03T16:30:00Z",
+        "endActivity": "2026-05-03T18:30:00Z",
+        "startArrivalWindow": "2026-05-03T16:30:00Z",
+        "endArrivalWindow": "2026-05-03T18:00:00Z",
+        "scheduledTransfers": []
+      },
+      {
+        "start": "2026-05-03T18:45:00Z",
+        "end": "2026-05-03T21:45:00Z",
+        "startActivity": "2026-05-03T18:45:00Z",
+        "endActivity": "2026-05-03T21:45:00Z",
+        "startArrivalWindow": "2026-05-03T18:45:00Z",
+        "endArrivalWindow": "2026-05-03T21:15:00Z",
+        "scheduledTransfers": []
+      }
+    ]
+  }
+}

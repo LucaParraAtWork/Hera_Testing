@@ -1,0 +1,11 @@
+Parameter,Value,Description
+HORIZON,2880,Simulation horizon in minutes
+P_MAX,25.0,Maximum plant power (MW)
+ETA,0.643,Efficiency of electricity to gas conversion
+R_LIMIT,0.86,Ramping limit (MW/min)
+M_SOL,5.0,Minimum Safety Operating Level (MW)
+LAMBDA_SWITCH,10.0,Temporal stability penalty cost
+P_FLUXYS,25,Maximum gas injection allowed (MW)
+LAMBDA_BAY,10.0,Spatial stability penalty cost (Switching)
+BLOCK_SIZE,240,aFRR Block size in minutes
+PI_AFRR,0,aFRR Price (Optimization & Financial)

@@ -1,0 +1,38 @@
+Scheduler | Slot confirmation | Slot confirmed; modal closes without error; grid shows the slot in its confirmed colour (not green/NEW); no error toast.
+Scheduler | Slot confirmation | All NEW slots confirmed; final week overview screenshot shows no remaining green/NEW slots; confirmed count equals initial NEW count.
+Scheduler | Slot confirmation | All eligible NEW slots confirmed in one action; 'Confirm Week' button becomes disabled after; Profiles and Occupancy screens reflect the bulk confirmation.
+Scheduler | Slot rejection | Slot rejected; grid shows slot as empty or reverted to NEW/unconfirmed state; no error toast.
+Scheduler | Slot rejection | All previously confirmed slots rejected; week overview shows no filled slots.
+Scheduler | Slot rejection | Week-level rejection applied; grid cleared of all confirmations; 'Confirm Week' button may become disabled if no NEW slots remain.
+Scheduler | Truck planning | Truck planning and bay allocation visible and consistent with selected slots.
+Scheduler | Truck planning | Planning shows feasible routes; no overlapping bay assignments.
+Scheduler | Truck planning | Slots reallocated to available bays; maintenance visible in planning.
+Scheduler | Bay allocation | Bay allocation matches optimizer output; no bay double-booked.
+Scheduler | Bay allocation | Algorithm skips maintained bay; UI shows maintenance indicator.
+Scheduler | Bay allocation | Plant capacity model adapts; bay allocation still feasible.
+Scheduler | Trailer timing | Filling profiles align with slot windows within configured tolerance.
+Scheduler | Maintenance boundary constraint | HERA enforces trailer continuity at maintenance boundaries: invalid bookings rejected or flagged; valid boundary bookings accepted; Bay Occupancy shows no negative capacity.
+Bay Occupancy | Occupancy screen | Occupancy graph renders; Bay 1–4 show imported nominations; no error or missing panel.
+Bay Occupancy | Occupancy screen | Occupancy shows confirmed bookings on assigned bays; bars denser than OCC_01 baseline; no ghost/unconfirmed occupancy.
+Bay Occupancy | Occupancy screen | Occupancy reverts; no confirmed fills visible; graph approaches OCC_01 baseline; no ghost bookings on any bay.
+Bay Occupancy | Occupancy screen | Maintenance periods visible on occupancy graph; Bay 1 entirely blocked; bookings distributed across Bays 2–4; Tuesday/Thursday maintenance constraints visible.
+Bay Occupancy | Occupancy screen | Only non-maintained slots booked; profile respects maintenance constraints.
+NCC | Costs Breakdown UI | 3 NCC Forecast cards are visible: one per offtaker (Client A, Client B) and one Total Planning card. API returns netCommodityCostForecasts with 3 entries. Each entry has a numeric €/kg value.
+NCC | Costs Breakdown UI | API captured for all 7 days; 7/7 have NCC forecasts. NCC card values differ day-to-day according to scheduled activity. No day shows stale or missing data.
+NCC | Costs Breakdown UI | Costs and NCC values increase on days with confirmed truck activity; Truck Filling row shows non-zero amounts; Total Planning NCC card reflects combined activity.
+NCC | Costs Breakdown UI | NCC reverts toward baseline; Truck Filling row at zero; no confirmed-truck cost component visible.
+NCC | Costs Breakdown UI | €/kg → €/MWh toggle succeeds; no errors detected. Display updates with rescaled values. Toggling back to €/kg also works without errors.
+NCC | Forecast – calculation validation | NCC reflects MSOL/gas-only scenario; Python vs API diff <1% or <0.02 €/kg.
+NCC | Forecast – calculation validation | Active offtaker shows truck-related costs; other shows gas/MSOL share only.
+NCC | Forecast – calculation validation | All three NCC cards (L1, L2, Total) match Python within tolerance.
+NCC | Forecast – calculation validation | Gas revenue offsets electricity cost correctly in NCC formula.
+NCC | Forecast – calculation validation | NCC increases appropriately; API matches Python.
+NCC | Forecast – calculation validation | Each filling period assigned to correct offtaker via closest confirmed pickup.
+NCC | Forecast € calculation validation | 21/21 comparisons pass (7 days × 3 entries: 2 offtakers + Total Planning). All absolute differences < 0.02 €/kg OR all percentage differences < 1 %. Terminal shows [OK] for every comparison; no [XX] entries.
+NCC | Forecast | UI NCC matches calculated values to 2 decimal places.
+NCC | Actual | Actual NCC computed including deviations.
+Plant communication | Receiving data | Metered values update Hera actuals.
+Invoicing | Outgoing invoices | Invoice amounts match NCC × volumes for period.
+Scheduled Transfers | Profiles & occupancy – filling validation | Both API responses are captured successfully. The 'Truck fillings by loading bay' graph is present in the profiles response. Occupancy data is captured. No limit or alignment checks at this stage — this scenario is data collection only.
+Scheduled Transfers | Profiles & occupancy – filling validation | Every bay Filling occupation in bay occupancy corresponds to exactly one profile filling segment in the same bay (time window match within ±30 min). No profile segment is left without a paired Filling occupation, and no Filling occupation is left without a matching profile segment. Auto-PASS when 0 mismatches on both sides.
+Scheduled Transfers | Profiles & occupancy – filling validation | For every confirmed loading session the bay occupancy contains: (1) a Drop occupation starting at dropoff_slot_start and spanning 1h45, (2) a Filling occupation from DS+1h45 to pickup_slot_start, (3) a Pick occupation from pickup_slot_start to pickup_slot_end+45 min. All three occupation windows must be in the same bay (±30 min tolerance). Auto-PASS when all sessions have all three occupations matched.

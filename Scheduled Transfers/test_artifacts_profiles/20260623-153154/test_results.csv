@@ -1,0 +1,6 @@
+n,id,name,expect,result,notes,desc
+1,CAP_01,"Capture confirmed transfers (Scheduling Screen, week+1)",PASS,PASS,,"Navigate to /nominations/weekly, go to week+1, capture last SchedulingScreen JSON."
+2,CAP_02,"Capture profile graph data (Profiles Screen, week+1)",PASS,PASS,,"Navigate to /schedules/profiles, go to week+1, toggle g/s, capture ProfilesScreen JSON."
+3,CAP_03,"Capture bay occupancy data (Bay Occupancy Screen, week+1)",PASS,PASS,,"Navigate to /schedules/occupancy, go to week+1, capture BayOccupancyScreen JSON."
+4,CHK_01,Check 1 – loading session count == filling segment count,PASS,PASS,,Count confirmed DropOff→Pickup pairs; compare to non-zero flow segments on graph.
+5,CHK_02,"Check 2 – per-segment flow, duration, and mass within ManualFastLoading limits",PASS,PASS,,"For each filling segment: max flow, duration, total mass checked against limits."

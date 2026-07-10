@@ -1,0 +1,5 @@
+id,desc,expect,result,notes
+MAINT_PR_01,Random non-HPC/LPC asset in maintenance → 0 kW,PASS,FAIL,
+MAINT_PR_02,Only High Pressure Compressor → 12 500 kW,PASS,FAIL,
+MAINT_PR_03,Only Low  Pressure Compressor → 12 500 kW,PASS,FAIL,
+MAINT_PR_04,No maintenance in window → 25 000 kW,PASS,PASS,

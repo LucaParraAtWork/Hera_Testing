@@ -5,8 +5,9 @@ import json
 import time
 import argparse
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+import asyncio
 
 # On tente d'importer openpyxl pour le formatage avancé
 try:
@@ -19,86 +20,63 @@ except ImportError:
     print("WARNING: 'openpyxl' n'est pas installé. Le rapport Excel sera basique ou absent.")
 
 # =========================
-# Test catalog (pour Summary)
+# dev catalog (pour Summary)
 # =========================
-TESTS = {
-    "STEP2_IMPORT": {
-        "id": "T-02",
-        "desc": "Import nominations CSV",
-        "expected": "Modal accepte le fichier, upload OK et fermeture du modal; la semaine cible s’affiche."
-    },
-    "STEP3_PROFILES_BEFORE": {
-        "id": "T-03A",
-        "desc": "Profiles baseline (avant actions)",
-        "expected": "La vue Profiles se charge et affiche les données initiales."
-    },
-    "STEP3_OCCUPANCY_BASELINE": {
-        "id": "T-03B",
-        "desc": "Occupancy baseline (avant actions)",
-        "expected": "La vue Occupancy se charge et montre l'occupation initiale des baies."
-    },
-    "STEP5_CONFIRM_OVERVIEW": {
-        "id": "T-05A",
-        "desc": "Confirmer les slots bleus",
-        "expected": "Les slots confirmés changent de couleur; l’UI de la semaine reflète l’état confirmé."
-    },
-    # NOUVEAU : vue Nominations après confirmations
-    "STEP5_NOM_AFTER_CONFIRM": {
-        "id": "T-05B",
-        "desc": "Nominations après confirmations (week)",
-        "expected": "La page Nominations (semaine cible) montre les slots confirmés colorés (pas bleus)."
-    },
-    "STEP5_PROFILES_AFTER_CONFIRM": {
-        "id": "T-05C",
-        "desc": "Profiles après confirmations",
-        "expected": "Le graph Profiles reflète les changements après confirmations."
-    },
-    "STEP5_OCCUPANCY_AFTER_CONFIRM": {
-        "id": "T-05D",
-        "desc": "Occupancy après confirmations",
-        "expected": "La vue Occupancy montre l'évolution de l'occupation après les confirmations."
-    },
-    "STEP6_REJECT_OVERVIEW": {
-        "id": "T-06A",
-        "desc": "Rejeter les slots bleus",
-        "expected": "Les slots rejetés redeviennent gris; l’UI de la semaine reflète l’état rejeté."
-    },
-    # NOUVEAU : vue Nominations après rejets
-    "STEP6_NOM_AFTER_REJECT": {
-        "id": "T-06B",
-        "desc": "Nominations après rejets (week)",
-        "expected": "La page Nominations (semaine cible) montre les slots rejetés redevenus gris."
-    },
-    "STEP6_PROFILES_AFTER_REJECT": {
-        "id": "T-06C",
-        "desc": "Profiles après rejets",
-        "expected": "Le graph Profiles reflète les changements après rejets."
-    },
-    "STEP6_OCCUPANCY_AFTER_REJECT": {
-        "id": "T-06D",
-        "desc": "Occupancy après rejets",
-        "expected": "La vue Occupancy montre l'évolution de l'occupation après les rejets."
-    },
-    "STEP7_CONFIRM_WEEK": {
-        "id": "T-07A",
-        "desc": "Confirm Week button",
-        "expected": "Le bouton Confirm Week fonctionne."
-    },
-    "STEP7_PROFILES_FINAL": {
-        "id": "T-07B",
-        "desc": "Final Profiles check",
-        "expected": "Le graph Profiles final est correct."
-    },
-    "STEP7_OCCUPANCY_FINAL": {
-        "id": "T-07C",
-        "desc": "Final Occupancy check",
-        "expected": "La vue Occupancy finale est correcte."
-    },
-    "STEP8_OCCUPANCY": {
-        "id": "T-08",
-        "desc": "Check Occupancy Graph",
-        "expected": "La vue Occupancy se charge correctement pour la semaine cible."
-    }
+devS = {
+    "STEP21_YEARLY_IMPORT": {"id": "T-21", "desc": "Import Yearly nominations CSV",
+                            "expected": "Upload OK, yearly view updated."},
+    "STEP22_EDIT_HISTORY":  {"id": "T-22", "desc": "Edit History & Breakdown",
+                            "expected": "New version submitted and visible in history."},
+    "STEP23_CHART_VIEW":    {"id": "T-23", "desc": "Chart View",
+                            "expected": "Graphs are visible in Chart mode."},
+    "STEP24_ADD_COMPANY":   {"id": "T-24", "desc": "Truck Manager - Add Company",
+                            "expected": "Company added and visible in list."},
+    "STEP25_EDIT_COMPANY":  {"id": "T-25", "desc": "Truck Manager - Edit Company",
+                            "expected": "Company modified successfully."},
+    "STEP26_ADD_TRUCK":     {"id": "T-26", "desc": "Truck Manager - Add Truck",
+                            "expected": "Truck added and visible in list."},
+    "STEP27_EDIT_TRUCK":    {"id": "T-27", "desc": "Truck Manager - Edit Truck",
+                            "expected": "Truck modified successfully (AA prefix)."},
+    "STEP1_IMPORT":        {"id": "T-01", "desc": "Import nominations CSV",
+                            "expected": "Upload OK, semaine cible affichee."},
+    "STEP2_NOMINATIONS":   {"id": "T-02", "desc": "Baseline nominations grid",
+                            "expected": "La grille affiche les creneaux importes."},
+    "STEP3_PROFILES":      {"id": "T-03", "desc": "Baseline Profiles",
+                            "expected": "Profiles affiche les donnees initiales."},
+    "STEP4_OCCUPANCY":     {"id": "T-04", "desc": "Baseline Bay Occupancy",
+                            "expected": "Bay Occupancy affiche l'occupation initiale."},
+    "STEP5_COSTS":         {"id": "T-05", "desc": "Baseline Costs Breakdown",
+                            "expected": "Costs Breakdown affiche les couts initiaux."},
+    "STEP6_CONFIRM":       {"id": "T-06", "desc": "Confirm all NEW slots (one by one)",
+                            "expected": "Chaque slot NEW est confirme individuellement."},
+    "STEP7_PROFILES":      {"id": "T-07", "desc": "Profiles after confirm",
+                            "expected": "Profiles reflete les confirmations."},
+    "STEP8_OCCUPANCY":     {"id": "T-08", "desc": "Occupancy after confirm",
+                            "expected": "Bay Occupancy reflete les confirmations."},
+    "STEP9_COSTS":         {"id": "T-09", "desc": "Costs after confirm",
+                            "expected": "Costs Breakdown reflete les confirmations."},
+    "STEP10_REJECT":       {"id": "T-10", "desc": "Reject all CONFIRMED slots (one by one)",
+                            "expected": "Chaque slot confirme est rejete individuellement."},
+    "STEP11_PROFILES":     {"id": "T-11", "desc": "Profiles after reject",
+                            "expected": "Profiles reflete les rejets."},
+    "STEP12_OCCUPANCY":    {"id": "T-12", "desc": "Occupancy after reject",
+                            "expected": "Bay Occupancy reflete les rejets."},
+    "STEP13_COSTS":        {"id": "T-13", "desc": "Costs after reject",
+                            "expected": "Costs Breakdown reflete les rejets."},
+    "STEP14_MAINTENANCE_TUES": {"id": "T-14", "desc": "Add Maintenance (Tuesday)",
+                                "expected": "Maintenance ajoutee pour le mardi."},
+    "STEP15_MAINTENANCE_THU":  {"id": "T-15", "desc": "Add Maintenance (Thursday)",
+                                "expected": "Maintenance ajoutee pour le jeudi."},
+    "STEP16_MAINTENANCE_SAT":  {"id": "T-16", "desc": "Add Maintenance (Loading Bay 1, full week)",
+                                "expected": "Maintenance ajoutee pour toute la semaine."},
+    "STEP17_CONFIRM_WEEK":     {"id": "T-17", "desc": "Confirm Week (bulk)",
+                                "expected": "Le bouton Confirm Week confirme tous les slots."},
+    "STEP18_PROFILES_POST":    {"id": "T-18", "desc": "Profiles after Maintenance + Confirm",
+                                "expected": "Profiles reflete les maintenances et confirmations."},
+    "STEP19_OCCUPANCY_POST":   {"id": "T-19", "desc": "Occupancy after Maintenance + Confirm",
+                                "expected": "Bay Occupancy reflete les maintenances et confirmations."},
+    "STEP20_REJECT_WEEK":      {"id": "T-20", "desc": "Reject Week (bulk)",
+                                "expected": "Les slots sont rejetees en masse."},
 }
 
 # =========================
@@ -166,32 +144,40 @@ class DataCapturer:
         try:
             ct = response.headers.get("content-type", "").lower()
             if "application/json" in ct and response.request.resource_type in ["fetch", "xhr"]:
-                body = response.json()
+                try:
+                    body = response.json()
+                except (Exception, asyncio.CancelledError):
+                    return
                 
                 method = response.request.method
+
+                # Capture request payload to extract dates or parameters
+                try:
+                    req_body = response.request.post_data_json()
+                except:
+                    try:
+                        req_body = response.request.post_data
+                    except:
+                        req_body = None
                 
                 # Determine "short name" for the URL
                 url = response.url
-                # Simplify URL to a slug
                 parsed = re.sub(r"^https?://[^/]+/", "", url)
                 
-                # Filter out noise
                 if "app-config" in parsed or "assets" in parsed:
                      return
 
-                slug = re.sub(r"[^a-zA-Z0-9_\-]", "_", parsed)[:60] # shorter slug
+                slug = re.sub(r"[^a-zA-Z0-9_\-]", "_", parsed)[:60]
                 
-                # Prepare data wrapper
                 data_wrapper = {
                     "url": url,
                     "method": method,
                     "status": response.status,
                     "headers": dict(response.headers),
+                    "request_body": req_body,
                     "data": body
                 }
                 
-                # Deduplication: Ignore if identical to last capture (prevents double-fetch noise)
-                # We compare 'url', 'method', 'data'.
                 sig = (url, method, json.dumps(body, sort_keys=True))
                 if hasattr(self, '_last_sig') and self._last_sig == sig:
                     return
@@ -199,20 +185,45 @@ class DataCapturer:
 
                 self._request_counter += 1
                 
-                # Deterministic filename: {Index:03d}_{Method}_{Slug}.json
-                idx = self._request_counter
-                filename = f"{idx:03d}_{method}_{slug}.json"
+                # ========================================================
+                # FIX: Timezone-Aware Date Extraction (Overcomes UTC Shift)
+                # ========================================================
+                date_suffix = ""
+                if req_body:
+                    req_str = json.dumps(req_body)
+                    
+                    # Look for ISO timestamp patterns: YYYY-MM-DDTHH:MM:SS
+                    iso_match = re.search(r"(\d{4}-\d{2}-\d{2})T(\d{2}):\d{2}:\d{2}", req_str)
+                    if iso_match:
+                        date_part = iso_match.group(1)
+                        hour_part = int(iso_match.group(2))
+                        
+                        # If hours are 22 or 23, it's a UTC serialization of the NEXT local day
+                        if hour_part >= 22:
+                            dt = datetime.strptime(date_part, "%Y-%m-%d") + timedelta(days=1)
+                            date_suffix = f"_{dt.strftime('%Y-%m-%d')}"
+                        else:
+                            date_suffix = f"_{date_part}"
+                    else:
+                        # Fallback for plain dates without timestamps
+                        date_match = re.search(r"202\d-\d{2}-\d{2}", req_str)
+                        if date_match:
+                            date_suffix = f"_{date_match.group(0)}"
+                
+                if date_suffix:
+                    # Clean overwrite entry per local calendar day
+                    filename = f"{method}_{slug}{date_suffix}.json"
+                else:
+                    filename = f"{self._request_counter:03d}_{method}_{slug}.json"
+                # ========================================================
                 
                 save_dir = self.root / self.current_step / "data"
                 save_dir.mkdir(parents=True, exist_ok=True)
-                file_path = save_dir / filename
                 
-                with file_path.open("w", encoding="utf-8") as f:
+                with (save_dir / filename).open("w", encoding="utf-8") as f:
                     json.dump(data_wrapper, f, indent=2)
 
-        except Exception as e:
-            # We don't want to crash the test, but knowing why it failed is good
-            # print(f"[DataCapturer] Error capturing: {e}")
+        except Exception:
             pass
 
     def start_capturing(self, page):
@@ -222,7 +233,7 @@ class DataCapturer:
         page.remove_listener("response", self._on_response)
 
 # =========================
-# Baseline Manager (Regression Test)
+# Baseline Manager (Regression dev)
 # =========================
 class BaselineManager:
     def __init__(self, baseline_root: Path):
@@ -366,12 +377,12 @@ class BaselineManager:
                     diffs.append(f"[{step_dir.name}] ERROR reading {fname}: {e}")
 
         if diffs:
-            print("[Baseline] ❌ REGRESSION DETECTED:")
+            print("[Baseline] [FAIL] REGRESSION DETECTED:")
             for d in diffs:
                 print(f"  - {d}")
             return {"status": "FAIL", "diffs": diffs}
         else:
-            print("[Baseline] ✅ SUCCESS: Verified against baseline (No discrepancies).")
+            print("[Baseline] [PASS] SUCCESS: Verified against baseline (No discrepancies).")
             return {"status": "PASS", "diffs": []}
 
 
@@ -413,11 +424,11 @@ class Shot:
 # Excel Summary (table simple)
 # =========================
 class SummaryWriter:
-    HEADERS = ["TestID", "Description", "Expected", "Success", "Note", "RunID", "Step"]
+    HEADERS = ["devID", "Description", "Expected", "Success", "Note", "RunID", "Step"]
     def __init__(self, excel_path: Path | None):
         self.excel_path = excel_path
 
-    def append(self, test_id: str, description: str, expected: str,
+    def append(self, dev_id: str, description: str, expected: str,
                success: bool, note: str, run_id: str, step: str):
         if not self.excel_path or not OPENPYXL_AVAILABLE:
             return
@@ -435,7 +446,7 @@ class SummaryWriter:
                 ws.append(self.HEADERS)
             
             ws.append([
-                test_id, description, expected,
+                dev_id, description, expected,
                 "YES" if success else "NO",
                 note or "",
                 run_id, step
@@ -477,9 +488,9 @@ class SummaryWriter:
             print(f"[Summary] Formatting error: {e}")
 
 # =========================
-# Test Logger (CSV + Excel Détaillé & Formatté)
+# dev Logger (CSV + Excel Détaillé & Formatté)
 # =========================
-class TestLogger:
+class devLogger:
     HEADERS = [
         "RunID","Timestamp","Env","Week","StartStep","Step","Feature",
         "Result","Severity","ErrorMessage","Notes",
@@ -493,7 +504,7 @@ class TestLogger:
         self.week = week
         self.start_step = start_step
         self.artifacts_dir = artifacts_dir
-        self.run_csv = artifacts_dir / run_id / "test_log.csv"
+        self.run_csv = artifacts_dir / run_id / "dev_log.csv"
         self.global_csv = global_csv
         self.severity_default = severity_default
         
@@ -502,7 +513,7 @@ class TestLogger:
         if excel_log:
             self.excel_path = Path(excel_log)
         else:
-            self.excel_path = artifacts_dir / run_id / "test_report.xlsx"
+            self.excel_path = artifacts_dir / run_id / "dev_report.xlsx"
 
         self._ensure_csv_headers(self.run_csv)
         self._ensure_csv_headers(self.global_csv)
@@ -530,9 +541,9 @@ class TestLogger:
                 wb = openpyxl.Workbook()
             
             ws = wb.active
-            if ws.title != "Test Log":
+            if ws.title != "dev Log":
                 # Si c'est un nouveau workbook, on renomme la sheet par défaut
-                ws.title = "Test Log"
+                ws.title = "dev Log"
             
             # Si la feuille est vide, on met les headers
             if ws.max_row == 1 and ws.cell(1,1).value != self.HEADERS[0]:
@@ -574,7 +585,7 @@ class TestLogger:
         if OPENPYXL_AVAILABLE:
             try:
                 wb = openpyxl.load_workbook(self.excel_path)
-                ws = wb["Test Log"] if "Test Log" in wb.sheetnames else wb.active
+                ws = wb["dev Log"] if "dev Log" in wb.sheetnames else wb.active
                 ws.append([row.get(h,"") for h in self.HEADERS])
                 wb.save(self.excel_path)
             except Exception as e:
@@ -588,7 +599,7 @@ class TestLogger:
         print(f"Finalizing Excel report formatting: {self.excel_path}...")
         try:
             wb = openpyxl.load_workbook(self.excel_path)
-            ws = wb["Test Log"] if "Test Log" in wb.sheetnames else wb.active
+            ws = wb["dev Log"] if "dev Log" in wb.sheetnames else wb.active
             
             max_row = ws.max_row
             max_col = ws.max_column
@@ -602,7 +613,7 @@ class TestLogger:
             ref = f"A1:{last_col_letter}{max_row}"
             
             # Créer l'objet Table
-            tab = Table(displayName="TestLogTable", ref=ref)
+            tab = Table(displayName="devLogTable", ref=ref)
             style = TableStyleInfo(name="TableStyleMedium9", showFirstColumn=False,
                                    showLastColumn=False, showRowStripes=True, showColumnStripes=False)
             tab.tableStyleInfo = style
@@ -640,6 +651,55 @@ def derive_offtaker_from_filename(csv_path: str) -> str | None:
 def derive_week_from_filename(csv_path: str) -> int | None:
     m = re.search(r"[Ww](?:eek)?\s*_?(\d{1,2})", Path(csv_path).name)
     return int(m.group(1)) if m else None
+
+def get_monday_of_week(year: int, week: int) -> datetime:
+    """Calculates the Monday of a given ISO week."""
+    # ISO week starts with Monday
+    return datetime.strptime(f"{year}-W{week:02d}-1", "%G-W%V-%u")
+
+def current_date_in_picker(page, waiter: Waiter) -> datetime | None:
+    try:
+        # Attente d'une UI stable
+        waiter.ui_quiet(page, timeout_ms=4000)
+        txt = page.locator("div.date-picker-current > button").first.inner_text(timeout=2000)
+        # Attendu: "27 Apr 2026"
+        return datetime.strptime(txt.strip(), "%d %b %Y")
+    except Exception:
+        return None
+
+def goto_day(page, target_date: datetime, shots: Shot, step_tag: str, waiter: Waiter, max_clicks: int = 100):
+    """Navigation jour par jour sur le date picker."""
+    try:
+        page.wait_for_selector("div.date-picker-current", timeout=8000)
+    except:
+        pass
+
+    tries = 0
+    while tries < max_clicks:
+        curr = current_date_in_picker(page, waiter)
+        if not curr:
+             # Tentative de refresh soft si on lit rien
+             waiter.m()
+             tries += 1
+             continue
+             
+        if curr.date() == target_date.date():
+            print(f"  [Day check] Reached target {target_date.date()}.")
+            waiter.ui_quiet(page)
+            shots.save(page, step_tag, f"day_{target_date.strftime('%Y_%m_%d')}")
+            return
+
+        diff = (target_date - curr).days
+        if diff > 0:
+            page.locator("div.date-picker-next > button").first.click()
+        else:
+            page.locator("div.date-picker-previous > button").first.click()
+        
+        waiter.s()
+        tries += 1
+    
+    shots.save(page, step_tag, "day_nav_failed")
+    raise RuntimeError(f"Impossible d'atteindre le jour {target_date} (après {max_clicks} clics)")
 
 def ensure_dir(p: Path):
     p.mkdir(parents=True, exist_ok=True)
@@ -681,7 +741,7 @@ def goto_week(page, target_week: int | None, shots: Shot, step_tag: str, waiter:
             return
         
         # Navigation
-        # Navigation logic with year wrap-around (shortest path)
+        # Navigation logic with year wrap-around (shordev path)
         diff = target_week - wk
         
         # Heuristic: limit for wrap decision
@@ -747,7 +807,7 @@ def _safe_click(page, locator, waiter: Waiter, what: str = "élément"):
     except Exception:
         pass
     try:
-        h = locator.element_handle(timeout=1200)
+        h = locator.element_handle(timeout=5000)
         if not h:
             raise RuntimeError("handle manquant")
         page.evaluate("(el)=>{ el.click(); el.dispatchEvent(new Event('click',{bubbles:true})); }", h)
@@ -794,7 +854,7 @@ def _select_by_label_robust(page, select_locator, label: str, waiter: Waiter):
     waiter.s()
 
 # =========================
-# Prompts testeur (peu intrusifs)
+# Prompts deveur (peu intrusifs)
 # =========================
 def ask_feedback(enabled: bool, step: str, feature: str, default_result: str = "PASS") -> tuple[str,str]:
     if not enabled:
@@ -810,7 +870,7 @@ def ask_feedback(enabled: bool, step: str, feature: str, default_result: str = "
 # =========================
 # Étape 4 (facultative) — ajout UI
 # =========================
-def add_nomination_ui(page, offtaker_label: str, shots: Shot, tlog: TestLogger, prompt_enabled: bool, waiter: Waiter):
+def add_nomination_ui(page, offtaker_label: str, shots: Shot, tlog: devLogger, prompt_enabled: bool, waiter: Waiter):
     step = "step4_add_ui"
     slot = page.locator("div.slot:not(.status-new)").first
     _safe_click(page, slot, waiter, "slot libre")
@@ -857,52 +917,91 @@ def add_nomination_ui(page, offtaker_label: str, shots: Shot, tlog: TestLogger, 
                  shot_modal=shot_modal, shot_action=shot_error, shot_after="", shot_folder=str(shots.stepdir(step)))
 
 # =========================
-# Étapes 5 & 6 — agir sur les slots bleus
+# Étapes 6 & 10 — agir sur les slots
 # =========================
-def _snapshot_blue_slots(page, waiter: Waiter):
+def _snapshot_slots(page, waiter: Waiter, mode: str = "new"):
+    """
+    Snapshot visible nomination slots and return their bounding boxes
+    sorted top-to-bottom, left-to-right.
+
+    mode:
+      "new"    => Only NEW slots (div.slot.status-new)
+      "filled" => All slots with visible content that are NOT rejected
+                   (for rejection of confirmed slots)
+    """
     waiter.ui_quiet(page)
-    blue = page.locator("div.slot.status-new")
-    total = blue.count()
+
+    if mode == "new":
+        found = page.locator("div.slot.status-new")
+    else:  # "filled" — confirmed slots have no CSS class, just inner content
+        found = page.locator("div.slot:not(.status-rejected)")
+
+    total = found.count()
     seen = {}
     for i in range(total):
         try:
-            el = blue.nth(i)
+            el = found.nth(i)
+            # In "filled" mode, skip empty slots by checking inner HTML.
+            # Confirmed slots contain colored bars; empty slots are blank.
+            if mode == "filled":
+                inner = el.inner_html(timeout=1000).strip()
+                if len(inner) < 10:
+                    continue
             bb = el.bounding_box(timeout=1500)
             if not bb:
+                continue
+            if bb["width"] < 20 or bb["height"] < 8:
                 continue
             key = (round(bb["y"], 1), round(bb["x"], 1))
             if key not in seen:
                 seen[key] = bb
         except Exception:
             continue
+    # Sort from top to bottom, then left to right
     return [seen[k] for k in sorted(seen.keys(), key=lambda t: (t[0], t[1]))]
 
-def _act_on_blue_slots(page, shots: Shot, tlog: TestLogger, max_n: int, action: str, prompt_enabled: bool, waiter: Waiter):
-    assert action in {"confirm","reject"}
-    step = "step5_confirm" if action == "confirm" else "step6_reject"
-    bbs = _snapshot_blue_slots(page, waiter)
+def _act_on_slots(page, shots: Shot, tlog: devLogger, max_n: int,
+                  action: str, step_tag: str, step_label: str,
+                  prompt_enabled: bool, waiter: Waiter):
+    """
+    Iterate through visible slots and confirm or reject them one by one.
+    action:     "confirm" | "reject"
+    step_tag:   folder name (e.g. "step06_confirm")
+    step_label: human label (e.g. "Step 6")
+    """
+    assert action in {"confirm", "reject"}
+
+    if action == "reject":
+        waiter.l()  # extra wait for grid to settle after prior confirms
+        bbs = _snapshot_slots(page, waiter, mode="filled")
+    else:
+        bbs = _snapshot_slots(page, waiter, mode="new")
+
     initial_n = len(bbs)
+    print(f"  [{step_label}] Found {initial_n} slots to {action}.")
 
     done = 0
     for idx, bb in enumerate(bbs, start=1):
-        if done >= max_n:
+        if max_n >= 0 and done >= max_n:
             break
 
-        slot_folder = shots.slotdir(step, idx)
-        page.mouse.move(bb["x"] + bb["width"]/2, bb["y"] + bb["height"]/2)
-        page.mouse.down(); page.mouse.up()
+        slot_folder = shots.slotdir(step_tag, idx)
+        page.mouse.move(bb["x"] + bb["width"] / 2, bb["y"] + bb["height"] / 2)
+        page.mouse.down()
+        page.mouse.up()
         waiter.s()
 
         try:
             modal = get_open_dialog(page, waiter)
         except PlaywrightTimeout:
+            print(f"  [{step_label}] Slot #{idx}: no modal opened, skipping.")
             continue
 
         shot_modal = shots.save_to(page, slot_folder, "01_modal_open")
         shots.save_to(page, slot_folder, "02_before_click")
 
-        feature = "Confirm blue slot" if action == "confirm" else "Reject blue slot"
-        result, notes = ask_feedback(prompt_enabled, "Step 5" if action=="confirm" else "Step 6", f"{feature} #{idx}")
+        feature = f"{action.capitalize()} slot #{idx}"
+        result, notes = ask_feedback(prompt_enabled, step_label, feature)
 
         try:
             if action == "confirm":
@@ -913,10 +1012,13 @@ def _act_on_blue_slots(page, shots: Shot, tlog: TestLogger, max_n: int, action: 
                     _safe_click(page, modal.locator("button.button.button-confirm"), waiter, "Confirm")
             else:
                 try:
-                    btn = modal.get_by_role("button", name=re.compile("^Reject$", re.I))
+                    btn = modal.get_by_role("button", name=re.compile(
+                        r"^Reject$|^Cancel$|^Unconfirm$|^Annuler$", re.I)).first
                     _safe_click(page, btn, waiter, "Reject")
                 except Exception:
-                    _safe_click(page, modal.locator("button.button.button-reject"), waiter, "Reject")
+                    _safe_click(page, modal.locator(
+                        "button.button-reject, button.btn-danger, button.button-cancel"
+                    ), waiter, "Reject Fallback")
 
             shot_click = shots.save_to(page, slot_folder, "03_after_click")
             try:
@@ -925,27 +1027,34 @@ def _act_on_blue_slots(page, shots: Shot, tlog: TestLogger, max_n: int, action: 
                 waiter.ui_quiet(page)
                 shot_after = shots.save_to(page, slot_folder, "04_after_close")
 
-            tlog.log("Step 5" if action=="confirm" else "Step 6", feature, result, notes=notes,
-                     shot_modal=shot_modal, shot_action=shot_click, shot_after=shot_after,
-                     shot_folder=str(slot_folder))
+            tlog.log(step_label, feature, result, notes=notes,
+                     shot_modal=shot_modal, shot_action=shot_click,
+                     shot_after=shot_after, shot_folder=str(slot_folder))
         except Exception as e:
             shot_err = shots.save_to(page, slot_folder, "03_error_click")
-            tlog.log("Step 5" if action=="confirm" else "Step 6", feature, "FAIL", notes=notes, error=str(e),
-                     shot_modal=shot_modal, shot_action=shot_err, shot_after="", shot_folder=str(slot_folder))
+            tlog.log(step_label, feature, "FAIL", notes=notes, error=str(e),
+                     shot_modal=shot_modal, shot_action=shot_err,
+                     shot_after="", shot_folder=str(slot_folder))
 
         done += 1
         waiter.s()
 
-    # Capture overview plein écran après toutes les actions de l'étape
-    overview = capture_week_overview(page, shots, step, "zz_week_overview", waiter)
-    shots.save(page, step, "zz_after_all")
+    overview = capture_week_overview(page, shots, step_tag, "zz_week_overview", waiter)
+    shots.save(page, step_tag, "zz_after_all")
+    print(f"  [{step_label}] Done: {done}/{initial_n} slots {action}ed.")
     return {"initial": initial_n, "done": done, "overview": overview}
 
-def confirm_blue_slots(page, shots: Shot, tlog: TestLogger, max_to_confirm: int, prompt_enabled: bool, waiter: Waiter):
-    return _act_on_blue_slots(page, shots, tlog, max_to_confirm, action="confirm", prompt_enabled=prompt_enabled, waiter=waiter)
 
-def reject_blue_slots(page, shots: Shot, tlog: TestLogger, max_to_reject: int, prompt_enabled: bool, waiter: Waiter):
-    return _act_on_blue_slots(page, shots, tlog, max_to_reject, action="reject", prompt_enabled=prompt_enabled, waiter=waiter)
+def confirm_slots(page, shots, tlog, max_n, prompt_enabled, waiter, step_tag="step06_confirm", step_label="Step 6"):
+    return _act_on_slots(page, shots, tlog, max_n, action="confirm",
+                         step_tag=step_tag, step_label=step_label,
+                         prompt_enabled=prompt_enabled, waiter=waiter)
+
+
+def reject_slots(page, shots, tlog, max_n, prompt_enabled, waiter, step_tag="step10_reject", step_label="Step 10"):
+    return _act_on_slots(page, shots, tlog, max_n, action="reject",
+                         step_tag=step_tag, step_label=step_label,
+                         prompt_enabled=prompt_enabled, waiter=waiter)
 
 # =========================
 # Shared Step Helpers
@@ -974,11 +1083,212 @@ def check_occupancy(page, occupancy_url, shots, tlog, summary, waiter, target_we
     tlog.log(step_label, "Occupancy Check", result_occ, notes=notes_occ,
              shot_after=shot_occ, shot_folder=str(shots.stepdir(step_folder)))
 
-    meta = TESTS.get(meta_key)
+    meta = devS.get(meta_key)
     if meta:
         summary.append(meta["id"], meta["desc"], meta["expected"], 
                       bool(result_occ.upper() == "PASS"), notes_occ, run_id, step_label)
     return result_occ.upper() == "PASS"
+
+def check_costs_breakdown(page, costs_url, shots, tlog, summary, waiter, target_week, step_folder, step_label, run_id, meta_key, prompt):
+    print(f"\n" + "="*60)
+    print(f"🚀 [HEAVY-DUTY] STARTING FULL 7-DAY COSTS BREAKDOWN CYCLE")
+    print("="*60)
+    
+    page.goto(costs_url, wait_until="networkidle")
+    waiter.l()
+    
+    if target_week is not None:
+        monday = get_monday_of_week(2026, target_week)
+        
+        # 1. Align calendar view to Monday first (Clears navigation noise)
+        print(f"👉 Aligning calendar view to starting Monday ({monday.strftime('%Y-%m-%d')})...")
+        goto_day(page, monday, shots, step_folder, waiter)
+        page.wait_for_load_state("networkidle")
+        waiter.l() # Let initial page settle completely
+        
+        # 2. Sequential 7-day loop with strict network locks
+        for i in range(7):
+            current_day = monday + timedelta(days=i)
+            day_name = current_day.strftime("%A")
+            current_date_str = current_day.strftime('%Y-%m-%d')
+            
+            print(f"\n📅 Processing Day {i+1}/7: {day_name} ({current_date_str})")
+            print(f"   -------------------------------------------------------")
+            
+            if i > 0:
+                try:
+                    # BLOCKING LAYER 1: Expect clean server response before continuing
+                    with page.expect_response(
+                        lambda r: "GetCostsBreakdownScreenAsync" in r.url and r.status == 200, 
+                        timeout=12000
+                    ):
+                        page.locator("div.date-picker-next > button").first.click()
+                    print("   ✅ Server network response received successfully.")
+                except Exception as e:
+                    print(f"   ⚠️ Network timeout or cache strike. Forcing safety delay...")
+                    page.locator("div.date-picker-next > button").first.click()
+                    time.sleep(3)
+            else:
+                print("   📊 Extracting baseline Monday values...")
+
+            # BLOCKING LAYER 2: Wait for UI spinners, skeletons, or progress bars to clear
+            waiter.ui_quiet(page, timeout_ms=8000)
+            
+            # BLOCKING LAYER 3: Explicit hydration pause for text rendering engine
+            time.sleep(1.5)
+            
+            # BLOCKING LAYER 4: Real-time UI Inspection Log
+            # Scrapes what is literally rendering on screen right now to verify alignment
+            try:
+                ncc_cards = page.locator(".ncc-card, [class*='ncc-forecast'], [class*='ncc-card']").all()
+                if ncc_cards:
+                    print("   👀 Live UI NCC Forecast inspection:")
+                    for card in ncc_cards:
+                        text = card.inner_text().replace('\n', ' | ')
+                        print(f"      • {text}")
+                else:
+                    # Generic text check if specific selectors differ
+                    vals = page.locator(".ncc-value").all_inner_texts()
+                    if vals: print(f"      • Live NCC Values found: {vals}")
+            except Exception as e:
+                print(f"      • Could not parse live card text: {e}")
+
+            # 3. Save explicit snapshot
+            shot_name = f"zz_costs_breakdown_{current_day.strftime('%Y_%m_%d')}"
+            shots.save(page, step_folder, shot_name, full_page=True)
+            print(f"   📸 Screenshot saved: {shot_name}.png")
+            
+            # Brief pause to ensure filesystem has closed file handles
+            time.sleep(0.5)
+
+    else:
+        # Fallback if no week is passed
+        waiter.ui_quiet(page)
+        shots.save(page, step_folder, "zz_costs_breakdown_current", full_page=True)
+
+    # Use Monday's screenshot for the dev execution log report
+    if target_week:
+        shot_costs = str(shots.stepdir(step_folder) / f"zz_costs_breakdown_{monday.strftime('%Y_%m_%d')}.png")
+    else:
+        shot_costs = str(shots.stepdir(step_folder) / "zz_costs_breakdown_current.png")
+    
+    result, notes = ask_feedback(prompt, step_label, f"Costs Breakdown Check ({step_label} - 7 Days)")
+    tlog.log(step_label, "Costs Breakdown (7 Days)", result, notes=notes,
+             shot_after=shot_costs, shot_folder=str(shots.stepdir(step_folder)))
+
+    meta = devS.get(meta_key)
+    if meta:
+        summary.append(meta["id"], meta["desc"], meta["expected"], 
+                      bool(result.upper() == "PASS"), notes, run_id, step_label)
+                      
+    print("="*60 + "\n")
+    return result.upper() == "PASS"
+
+
+def check_profiles(page, profiles_url, shots, tlog, summary, waiter, target_week, step_folder, step_label, run_id, meta_key, prompt):
+    """Navigate to Profiles, wait for graph, capture screenshot + data."""
+    print(f"  [{step_label}] Checking Profiles...")
+    page.goto(profiles_url, wait_until="domcontentloaded")
+    waiter.m()
+    
+    try:
+        page.wait_for_selector("app-line-graph", timeout=15_000)
+    except:
+        pass
+        
+    if target_week is not None:
+        goto_week(page, target_week, shots, step_folder, waiter)
+    waiter.l()
+    
+    # ========================================================
+    # NOUVEAU CODE : Bascule sur "g/s" avant la capture
+    # ========================================================
+    print(f"  [{step_label}] Switching to g/s...")
+    try:
+        # On cible précisément le bouton g/s dans le toggle
+        gs_btn = page.locator("app-toggle button", has_text="g/s").first
+        
+        # On utilise ton helper existant pour un clic robuste
+        _safe_click(page, gs_btn, waiter, "Toggle g/s")
+        
+        # Attente pour s'assurer que les graphes/API se mettent à jour
+        waiter.l() 
+        waiter.ui_quiet(page)
+    except Exception as e:
+        print(f"  [{step_label}] Warning: Impossible de basculer sur g/s : {e}")
+    # ========================================================
+
+    shot = shots.save(page, step_folder, "zz_profiles", full_page=True)
+    result, notes = ask_feedback(prompt, step_label, "Profiles Check")
+    
+    tlog.log(step_label, "Profiles Check", result, notes=notes,
+             shot_after=shot, shot_folder=str(shots.stepdir(step_folder)))
+             
+    meta = devS.get(meta_key)
+    if meta:
+        summary.append(meta["id"], meta["desc"], meta["expected"],
+                      bool(result.upper() == "PASS"), notes, run_id, step_label)
+                      
+    return result.upper() == "PASS"
+
+def add_maintenance_record(page, maintenance_url, assets: list[str], start_date: str, end_date: str,
+                           shots, tlog, summary, waiter, target_week, step_tag, step_label, run_id, meta_key, prompt):
+    """
+    Navigate to Maintenance, select asset, fill dates, and create.
+    assets: list of strings to select in order (if nested) or just the final asset.
+    start_date/end_date: e.g. "2026-04-28T08:00"
+    """
+    print(f"  [{step_label}] Adding Maintenance for {assets[-1]} ({start_date} to {end_date})...")
+    page.goto(maintenance_url, wait_until="domcontentloaded")
+    waiter.m()
+    if target_week is not None:
+        goto_week(page, target_week, shots, step_tag, waiter)
+    
+    waiter.ui_quiet(page)
+    shots.save(page, step_tag, "01_maintenance_land")
+
+    _safe_click(page, page.get_by_role("button", name=re.compile("^Add Maintenance$", re.I)), waiter, "Add Maintenance")
+    modal = get_open_dialog(page, waiter)
+    shots.save(page, step_tag, "02_maintenance_modal")
+
+    # Asset selection - it might be a standard select or a custom dropdown
+    try:
+        # Try finding a select by its proximity to label "Asset" or by tag
+        select = modal.locator("select").first
+        select.select_option(label=assets[-1])
+    except Exception:
+        # Fallback for custom dropdowns (click and find text)
+        modal.locator("text=- Select -").first.click()
+        waiter.s()
+        modal.locator(f"text={assets[-1]}").last.click()
+
+    # Fill dates
+    # Assuming standard <input type="datetime-local">
+    modal.locator("input").nth(0).fill(start_date)
+    modal.locator("input").nth(1).fill(end_date)
+    waiter.s()
+    shots.save(page, step_tag, "03_maintenance_ready")
+
+    _safe_click(page, modal.get_by_role("button", name=re.compile("^Create$", re.I)), waiter, "Create Maintenance")
+    
+    try:
+        modal.wait_for(state="detached", timeout=10_000)
+    except Exception:
+        pass
+    
+    waiter.ui_quiet(page)
+    shot_after = shots.save(page, step_tag, "04_maintenance_done")
+
+    result, notes = ask_feedback(prompt, step_label, f"Maintenance Added: {assets[-1]}")
+    tlog.log(step_label, f"Add Maintenance ({assets[-1]})", result, notes=notes,
+             shot_after=shot_after, shot_folder=str(shots.stepdir(step_tag)))
+    
+    meta = devS.get(meta_key)
+    if meta:
+        summary.append(meta["id"], meta["desc"], meta["expected"],
+                      bool(result.upper() == "PASS"), notes, run_id, step_label)
+    return result.upper() == "PASS"
+
 
 # =========================
 # Orchestrateur
@@ -986,20 +1296,22 @@ def check_occupancy(page, occupancy_url, shots, tlog, summary, waiter, target_we
 def run(nominations_url: str,
         profiles_url: str,
         occupancy_url: str,
+        costs_url: str,
+        maintenance_url: str,
         csv_path: str,
+        yearly_nominations_url: str = "",
+        yearly_csv_path: str = "",
         slowmo: int = 0,
-        start_step: int = 2,
-        do_step4: bool = False,
-        confirm_n: int = 5,
-        reject_n: int = 5,
         env: str = "dev",
         prompt: bool = True,
         excel_log: str | None = None,
         excel_summary: str | None = None,
         severity_default: str = "Medium",
+        start_step: int = 1,
         wait_s: float = 0.2,
         wait_m: float = 0.6,
-        wait_l: float = 1.2):
+        wait_l: float = 1.2,
+        initial_wait: int = 30):
 
     csv_file = Path(csv_path)
     if not csv_file.exists():
@@ -1014,13 +1326,9 @@ def run(nominations_url: str,
     shots = Shot(artifacts, run_id)
     waiter = Waiter(wait_s=wait_s, wait_m=wait_m, wait_l=wait_l)
 
-    tlog = TestLogger(
-        run_id=run_id,
-        env=env,
-        week=target_week,
-        start_step=start_step,
-        artifacts_dir=artifacts,
-        global_csv=Path("test_log_all.csv"),
+    tlog = devLogger(
+        run_id=run_id, env=env, week=target_week, start_step=start_step,
+        artifacts_dir=artifacts, global_csv=Path("dev_log_all.csv"),
         excel_log=Path(excel_log) if excel_log else None,
         severity_default=severity_default
     )
@@ -1028,396 +1336,1653 @@ def run(nominations_url: str,
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=False, slow_mo=slowmo)
-            context = browser.new_context(viewport={"width": 1500, "height": 900})
-            page = context.new_page()
+            # Use a persistent context to store and reuse authentication cookies/session
+            user_data_dir = artifacts / "playwright_session"
+            context = p.chromium.launch_persistent_context(
+                str(user_data_dir),
+                headless=False,
+                slow_mo=slowmo,
+                viewport={"width": 1500, "height": 900}
+            )
+            page = context.pages[0] if context.pages else context.new_page()
 
-            # Init Data Capturer
+            has_checked_login = False
+
+            # Monkey-patch page.goto to handle Microsoft login redirection robustly
+            original_goto = page.goto
+            def custom_goto(url, wait_until="domcontentloaded", timeout=30000, **kwargs):
+                nonlocal has_checked_login
+                print(f"  [custom_goto] Called with url = {url}")
+                try:
+                    res = original_goto(url, wait_until=wait_until, timeout=timeout, **kwargs)
+                except Exception as e:
+                    print(f"  [custom_goto] Exception caught: {e}")
+                    try:
+                        curr_url = page.url
+                    except Exception:
+                        curr_url = ""
+                    print(f"  [custom_goto] Current URL during exception: {curr_url}")
+                    if "login.microsoftonline.com" not in curr_url:
+                        raise e
+                    res = None
+                
+                # If we haven't checked login yet, poll page.url for up to 5 seconds to detect client-side MSAL redirect
+                if not has_checked_login:
+                    start_check = time.time()
+                    while time.time() - start_check < 5.0:
+                        try:
+                            curr_url = page.url
+                        except Exception:
+                            curr_url = ""
+                        if "login.microsoftonline.com" in curr_url:
+                            break
+                        page.wait_for_timeout(500)
+                    has_checked_login = True
+                else:
+                    # Quick immediate check
+                    try:
+                        curr_url = page.url
+                    except Exception:
+                        curr_url = ""
+                
+                print(f"  [custom_goto] Current URL after check: {curr_url}")
+                
+                if "login.microsoftonline.com" in curr_url:
+                    print(f"\n[INFO] Redirected to Microsoft login page while navigating to {url}.")
+                    print("[INFO] Please perform manual login/MFA in the browser window...")
+                    start_time = time.time()
+                    logged_in = False
+                    while time.time() - start_time < 300: # 5 minutes
+                        try:
+                            if page.is_closed():
+                                print("[ERROR] Browser window was closed.")
+                                break
+                            curr = page.url
+                            if "login.microsoftonline.com" not in curr and "herawebdev.azurewebsites.net" in curr:
+                                if "/auth" not in curr:
+                                    logged_in = True
+                                    break
+                        except Exception:
+                            pass
+                        page.wait_for_timeout(1000)
+                    
+                    if logged_in:
+                        print("[INFO] Login detected! Re-navigating to target URL...")
+                        page.wait_for_timeout(3000)
+                        return original_goto(url, wait_until=wait_until, timeout=timeout, **kwargs)
+                    else:
+                        raise RuntimeError("Manual login timed out or failed.")
+                return res
+
+            page.goto = custom_goto
+
             capturer = DataCapturer(artifacts, run_id)
             capturer.start_capturing(page)
 
-            # ===== ÉTAPE 2 : Import + Nominations (week ciblée)
-            step2_success = None
-            step2_note = ""
-            if start_step <= 2:
-                capturer.set_step("step2_import")
+            # Navigate first to check auth status and trigger login check
+            if initial_wait > 0:
+                print(f"\n[INFO] Navigating to trigger login check...")
+                target = yearly_nominations_url if start_step == 21 else nominations_url
+                try:
+                    page.goto(target or "https://herawebdev.azurewebsites.net/nominations/yearly", wait_until="commit", timeout=15000)
+                except Exception:
+                    pass
+                print("[INFO] Resuming automation.")
+
+            # ═══════════════════════════════════════
+            # STEP 1 : Import CSV
+            # ═══════════════════════════════════════
+            if start_step <= 1:
+                print("\n" + "=" * 50)
+                print("  STEP 1 : Import CSV")
+                print("=" * 50)
+                capturer.set_step("step01_import")
                 page.goto(nominations_url, wait_until="domcontentloaded")
                 waiter.m(); waiter.ui_quiet(page)
-                shot_before = shots.save(page, "step2_import", "01_nominations_landing")
+                shots.save(page, "step01_import", "01_landing")
 
                 try:
-                    try:
-                        _safe_click(page, page.get_by_role("button", name=re.compile("^Import Nominations Request$", re.I)), waiter, "Import Nominations Request")
-                    except PlaywrightTimeout:
-                        _safe_click(page, page.locator("text=Import Nominations Request").first, waiter, "Import Nominations Request")
+                    _safe_click(page, page.get_by_role("button", name=re.compile("^Import Nominations Request$", re.I)), waiter, "Import")
+                except Exception:
+                    _safe_click(page, page.locator("text=Import Nominations Request").first, waiter, "Import")
 
-                    modal = get_open_dialog(page, waiter)
-                    shot_modal = shots.save(page, "step2_import", "02_import_modal_open")
+                modal = get_open_dialog(page, waiter)
+                shots.save(page, "step01_import", "02_modal")
 
+                try:
+                    modal.locator("select#offtaker").select_option(label=offtaker_label)
+                except Exception:
+                    modal.locator("select[name='offtaker']").select_option(label=offtaker_label)
+                waiter.s()
+
+                modal.locator("input#nominationFile").set_input_files(str(csv_file))
+                waiter.s()
+                shots.save(page, "step01_import", "03_ready")
+
+                _safe_click(page, modal.get_by_role("button", name=re.compile("^Upload$", re.I)), waiter, "Upload")
+                try:
+                    modal.wait_for(state="detached", timeout=15_000)
+                except Exception:
+                    pass
+                waiter.ui_quiet(page)
+
+                if target_week is not None:
+                    goto_week(page, target_week, shots, "step01_import", waiter)
+                waiter.m()
+                shots.save(page, "step01_import", "04_after_import")
+                tlog.log("Step 1", "Import CSV", "PASS",
+                        shot_folder=str(shots.stepdir("step01_import")))
+                meta = devS["STEP1_IMPORT"]
+                summary.append(meta["id"], meta["desc"], meta["expected"], True, "", run_id, "Step 1")
+
+            # ═══════════════════════════════════════
+            # STEP 2 : Baseline Nominations
+            # ═══════════════════════════════════════
+            if start_step <= 2:
+                print("\n" + "=" * 50)
+                print("  STEP 2 : Baseline Nominations")
+                print("=" * 50)
+                capturer.set_step("step02_nominations")
+                # If we skipped Step 1, we might need to navigate here
+                if start_step == 2:
+                    page.goto(nominations_url, wait_until="domcontentloaded")
+                    waiter.m()
+                    if target_week is not None:
+                        goto_week(page, target_week, shots, "step02_nominations", waiter)
+                
+                waiter.ui_quiet(page)
+                capture_week_overview(page, shots, "step02_nominations", "01_grid", waiter)
+                tlog.log("Step 2", "Baseline Nominations", "PASS",
+                        shot_folder=str(shots.stepdir("step02_nominations")))
+                meta = devS["STEP2_NOMINATIONS"]
+                summary.append(meta["id"], meta["desc"], meta["expected"], True, "", run_id, "Step 2")
+
+            # ═══════════════════════════════════════
+            # STEP 3 : Baseline Profiles
+            # ═══════════════════════════════════════
+            if start_step <= 3:
+                print("\n" + "=" * 50)
+                print("  STEP 3 : Baseline Profiles")
+                print("=" * 50)
+                capturer.set_step("step03_profiles")
+                check_profiles(page, profiles_url, shots, tlog, summary, waiter,
+                            target_week, "step03_profiles", "Step 3", run_id, "STEP3_PROFILES", prompt)
+
+            # ═══════════════════════════════════════
+            # STEP 4 : Baseline Bay Occupancy
+            # ═══════════════════════════════════════
+            if start_step <= 4:
+                print("\n" + "=" * 50)
+                print("  STEP 4 : Baseline Occupancy")
+                print("=" * 50)
+                capturer.set_step("step04_occupancy")
+                check_occupancy(page, occupancy_url, shots, tlog, summary, waiter,
+                            target_week, "step04_occupancy", "Step 4", run_id, "STEP4_OCCUPANCY", prompt)
+
+            # ═══════════════════════════════════════
+            # STEP 5 : Baseline Costs Breakdown
+            # ═══════════════════════════════════════
+            if start_step <= 5:
+                print("\n" + "=" * 50)
+                print("  STEP 5 : Baseline Costs")
+                print("=" * 50)
+                capturer.set_step("step05_costs")
+                check_costs_breakdown(page, costs_url, shots, tlog, summary, waiter,
+                                    target_week, "step05_costs", "Step 5", run_id, "STEP5_COSTS", prompt)
+
+            # ═══════════════════════════════════════
+            # STEP 6 : Confirm all NEW slots one by one
+            # ═══════════════════════════════════════
+            if start_step <= 6:
+                print("\n" + "=" * 50)
+                print("  STEP 6 : Confirm Slots (one by one)")
+                print("=" * 50)
+                capturer.set_step("step06_confirm")
+                page.goto(nominations_url, wait_until="domcontentloaded")
+                waiter.m()
+                if target_week is not None:
+                    goto_week(page, target_week, shots, "step06_confirm", waiter)
+                conf = confirm_slots(page, shots, tlog, max_n=-1,
+                                    prompt_enabled=prompt, waiter=waiter,
+                                    step_tag="step06_confirm", step_label="Step 6")
+                meta = devS["STEP6_CONFIRM"]
+                summary.append(meta["id"], meta["desc"], meta["expected"],
+                            conf["done"] > 0, f"{conf['done']}/{conf['initial']} confirmed", run_id, "Step 6")
+
+            # ═══════════════════════════════════════
+            # STEP 7 : Profiles after confirm
+            # ═══════════════════════════════════════
+            if start_step <= 7:
+                print("\n" + "=" * 50)
+                print("  STEP 7 : Profiles after Confirm")
+                print("=" * 50)
+                capturer.set_step("step07_profiles")
+                check_profiles(page, profiles_url, shots, tlog, summary, waiter,
+                            target_week, "step07_profiles", "Step 7", run_id, "STEP7_PROFILES", prompt)
+
+            # ═══════════════════════════════════════
+            # STEP 8 : Occupancy after confirm
+            # ═══════════════════════════════════════
+            if start_step <= 8:
+                print("\n" + "=" * 50)
+                print("  STEP 8 : Occupancy after Confirm")
+                print("=" * 50)
+                capturer.set_step("step08_occupancy")
+                check_occupancy(page, occupancy_url, shots, tlog, summary, waiter,
+                            target_week, "step08_occupancy", "Step 8", run_id, "STEP8_OCCUPANCY", prompt)
+
+            # ═══════════════════════════════════════
+            # STEP 9 : Costs after confirm
+            # ═══════════════════════════════════════
+            if start_step <= 9:
+                print("\n" + "=" * 50)
+                print("  STEP 9 : Costs after Confirm")
+                print("=" * 50)
+                capturer.set_step("step09_costs")
+                check_costs_breakdown(page, costs_url, shots, tlog, summary, waiter,
+                                    target_week, "step09_costs", "Step 9", run_id, "STEP9_COSTS", prompt)
+
+            # ═══════════════════════════════════════
+            # STEP 10 : Reject all CONFIRMED slots one by one
+            # ═══════════════════════════════════════
+            if start_step <= 10:
+                print("\n" + "=" * 50)
+                print("  STEP 10 : Reject Slots (one by one)")
+                print("=" * 50)
+                capturer.set_step("step10_reject")
+                page.goto(nominations_url, wait_until="domcontentloaded")
+                waiter.m()
+                if target_week is not None:
+                    goto_week(page, target_week, shots, "step10_reject", waiter)
+                rej = reject_slots(page, shots, tlog, max_n=-1,
+                                prompt_enabled=prompt, waiter=waiter,
+                                step_tag="step10_reject", step_label="Step 10")
+                meta = devS["STEP10_REJECT"]
+                summary.append(meta["id"], meta["desc"], meta["expected"],
+                            rej["done"] > 0, f"{rej['done']}/{rej['initial']} rejected", run_id, "Step 10")
+
+            # ═══════════════════════════════════════
+            # STEP 11 : Profiles after reject
+            # ═══════════════════════════════════════
+            if start_step <= 11:
+                print("\n" + "=" * 50)
+                print("  STEP 11 : Profiles after Reject")
+                print("=" * 50)
+                capturer.set_step("step11_profiles")
+                check_profiles(page, profiles_url, shots, tlog, summary, waiter,
+                            target_week, "step11_profiles", "Step 11", run_id, "STEP11_PROFILES", prompt)
+
+            # ═══════════════════════════════════════
+            # STEP 12 : Occupancy after reject
+            # ═══════════════════════════════════════
+            if start_step <= 12:
+                print("\n" + "=" * 50)
+                print("  STEP 12 : Occupancy after Reject")
+                print("=" * 50)
+                capturer.set_step("step12_occupancy")
+                check_occupancy(page, occupancy_url, shots, tlog, summary, waiter,
+                            target_week, "step12_occupancy", "Step 12", run_id, "STEP12_OCCUPANCY", prompt)
+
+            # ═══════════════════════════════════════
+            # STEP 13 : Costs after reject
+            # ═══════════════════════════════════════
+            if start_step <= 13:
+                print("\n" + "=" * 50)
+                print("  STEP 13 : Costs after Reject")
+                print("=" * 50)
+                capturer.set_step("step13_costs")
+                check_costs_breakdown(page, costs_url, shots, tlog, summary, waiter,
+                                    target_week, "step13_costs", "Step 13", run_id, "STEP13_COSTS", prompt)
+
+            # Compute maintenance dates dynamically from target_week
+            week_monday = get_monday_of_week(2026, target_week) if target_week else get_monday_of_week(2026, 18)
+            week_tuesday = week_monday + timedelta(days=1)
+            week_thursday = week_monday + timedelta(days=3)
+            week_sunday = week_monday + timedelta(days=6)
+
+            # ═══════════════════════════════════════
+            # STEP 14 : Add Maintenance (Tuesday)
+            # ═══════════════════════════════════════
+            if start_step <= 14:
+                print("\n" + "=" * 50)
+                print("  STEP 14 : Add Maintenance (Tuesday)")
+                print("=" * 50)
+                capturer.set_step("step14_maintenance_tues")
+                add_maintenance_record(page, maintenance_url, ["High Pressure Compressor"],
+                                      week_tuesday.strftime("%Y-%m-%dT00:00"),
+                                      week_tuesday.strftime("%Y-%m-%dT23:59"),
+                                      shots, tlog, summary, waiter, target_week,
+                                      "step14_maintenance_tues", "Step 14", run_id, 
+                                      "STEP14_MAINTENANCE_TUES", prompt)
+
+            # ═══════════════════════════════════════
+            # STEP 15 : Add Maintenance (Thursday)
+            # ═══════════════════════════════════════
+            if start_step <= 15:
+                print("\n" + "=" * 50)
+                print("  STEP 15 : Add Maintenance (Thursday)")
+                print("=" * 50)
+                capturer.set_step("step15_maintenance_thu")
+                add_maintenance_record(page, maintenance_url, ["Stack 1"],
+                                      week_thursday.strftime("%Y-%m-%dT00:00"),
+                                      week_thursday.strftime("%Y-%m-%dT23:59"),
+                                      shots, tlog, summary, waiter, target_week,
+                                      "step15_maintenance_thu", "Step 15", run_id, 
+                                      "STEP15_MAINTENANCE_THU", prompt)
+
+            # ═══════════════════════════════════════
+            # STEP 16 : Add Maintenance (Loading Bay 1, Full Week)
+            # ═══════════════════════════════════════
+            if start_step <= 16:
+                print("\n" + "=" * 50)
+                print("  STEP 16 : Add Maintenance (Loading Bay 1, Full Week)")
+                print("=" * 50)
+                capturer.set_step("step16_maintenance_week")
+                add_maintenance_record(page, maintenance_url, ["Loading Bay 1"],
+                                      week_monday.strftime("%Y-%m-%dT00:00"),
+                                      week_sunday.strftime("%Y-%m-%dT23:59"),
+                                      shots, tlog, summary, waiter, target_week,
+                                      "step16_maintenance_week", "Step 16", run_id, 
+                                      "STEP16_MAINTENANCE_SAT", prompt)
+
+            # ═══════════════════════════════════════
+            # STEP 17 : Confirm Week (bulk)
+            # ═══════════════════════════════════════
+            if start_step <= 17:
+                print("\n" + "=" * 50)
+                print("  STEP 17 : Confirm Week")
+                print("=" * 50)
+                capturer.set_step("step17_confirm_week")
+                page.goto(nominations_url, wait_until="domcontentloaded")
+                waiter.m()
+                if target_week is not None:
+                    goto_week(page, target_week, shots, "step17_confirm_week", waiter)
+
+                try:
+                    btn = page.get_by_role("button", name=re.compile(r"Confirm Week", re.I)).first
+                    if btn.is_visible() and not btn.is_disabled():
+                        _safe_click(page, btn, waiter, "Confirm Week")
+                        cmodal = get_open_dialog(page, waiter)
+                        shots.save(page, "step17_confirm_week", "01_modal_open")
+                        _safe_click(page, cmodal.get_by_role("button", name=re.compile("^Confirm$", re.I)), waiter, "Confirm")
+                        try:
+                            cmodal.wait_for(state="detached", timeout=10_000)
+                        except Exception:
+                            pass
+                        # Give extra time for profiles/occupancy to regenerate
+                        waiter.l()
+                        waiter.ui_quiet(page)
+                        shots.save(page, "step17_confirm_week", "02_after_confirm")
+                        tlog.log("Step 17", "Confirm Week (bulk)", "PASS",
+                                shot_folder=str(shots.stepdir("step17_confirm_week")))
+                        meta = devS["STEP17_CONFIRM_WEEK"]
+                        summary.append(meta["id"], meta["desc"], meta["expected"], True, "", run_id, "Step 17")
+                    else:
+                        shots.save(page, "step17_confirm_week", "01_button_disabled")
+                        tlog.log("Step 17", "Confirm Week (bulk)", "SKIP", notes="Button not visible/disabled",
+                                shot_folder=str(shots.stepdir("step17_confirm_week")))
+                except Exception as e:
+                    shots.save(page, "step17_confirm_week", "01_error")
+                    tlog.log("Step 17", "Confirm Week (bulk)", "FAIL", error=str(e),
+                            shot_folder=str(shots.stepdir("step17_confirm_week")))
+
+            # ═══════════════════════════════════════
+            # STEP 18 : Profiles Post-Impact
+            # ═══════════════════════════════════════
+            if start_step <= 18:
+                print("\n" + "=" * 50)
+                print("  STEP 18 : Profiles Post-Impact")
+                print("=" * 50)
+                capturer.set_step("step18_profiles_post")
+                check_profiles(page, profiles_url, shots, tlog, summary, waiter,
+                            target_week, "step18_profiles_post", "Step 18", run_id, "STEP18_PROFILES_POST", prompt)
+
+            # ═══════════════════════════════════════
+            # STEP 19 : Occupancy Post-Impact
+            # ═══════════════════════════════════════
+            if start_step <= 19:
+                print("\n" + "=" * 50)
+                print("  STEP 19 : Occupancy Post-Impact")
+                print("=" * 50)
+                capturer.set_step("step19_occupancy_post")
+                check_occupancy(page, occupancy_url, shots, tlog, summary, waiter,
+                            target_week, "step19_occupancy_post", "Step 19", run_id, "STEP19_OCCUPANCY_POST", prompt)
+
+            # ═══════════════════════════════════════
+            # STEP 20 : Reject Week (bulk)
+            # ═══════════════════════════════════════
+            if start_step <= 20:
+                print("\n" + "=" * 50)
+                print("  STEP 20 : Reject Week")
+                print("=" * 50)
+                capturer.set_step("step20_reject_week")
+                page.goto(nominations_url, wait_until="domcontentloaded")
+                waiter.m()
+                if target_week is not None:
+                    goto_week(page, target_week, shots, "step20_reject_week", waiter)
+
+                try:
+                    btn = page.get_by_role("button", name=re.compile(r"Confirm Week", re.I)).first
+                    if btn.is_visible() and not btn.is_disabled():
+                        _safe_click(page, btn, waiter, "Confirm Week")
+                        cmodal = get_open_dialog(page, waiter)
+                        shots.save(page, "step20_reject_week", "01_modal_open")
+                        _safe_click(page, cmodal.get_by_role("button", name=re.compile("^Reject$", re.I)), waiter, "Reject")
+                        try:
+                            cmodal.wait_for(state="detached", timeout=10_000)
+                        except Exception:
+                            pass
+                        # Give extra time for cleanup
+                        waiter.l()
+                        waiter.ui_quiet(page)
+                        shots.save(page, "step20_reject_week", "02_after_reject")
+                        tlog.log("Step 20", "Reject Week (bulk)", "PASS",
+                                shot_folder=str(shots.stepdir("step20_reject_week")))
+                        meta = devS["STEP20_REJECT_WEEK"]
+                        summary.append(meta["id"], meta["desc"], meta["expected"], True, "", run_id, "Step 20")
+                    else:
+                        shots.save(page, "step20_reject_week", "01_button_disabled")
+                        tlog.log("Step 20", "Reject Week (bulk)", "SKIP", notes="Button not visible/disabled",
+                                shot_folder=str(shots.stepdir("step20_reject_week")))
+                except Exception as e:
+                    shots.save(page, "step20_reject_week", "01_error")
+                    tlog.log("Step 20", "Reject Week (bulk)", "FAIL", error=str(e),
+                            shot_folder=str(shots.stepdir("step20_reject_week")))
+
+            # ═══════════════════════════════════════
+            # STEP 21 : Yearly Import CSV
+            # ═══════════════════════════════════════
+            if start_step <= 21:
+                print("\n" + "=" * 50)
+                print("  STEP 21 : Yearly Import CSV")
+                print("=" * 50)
+                capturer.set_step("step21_yearly_import")
+                
+                # Use default if not provided
+                y_url = yearly_nominations_url or "https://herawebdev.azurewebsites.net/nominations/yearly"
+                y_csv = yearly_csv_path or "Yearly_nomination_2027.csv"
+                
+                # Only goto if we aren't already there (or if the previous goto failed/interrupted)
+                if y_url not in page.url:
                     try:
-                        modal.locator("select#offtaker").select_option(label=offtaker_label)
+                        page.goto(y_url, wait_until="domcontentloaded", timeout=30000)
                     except Exception:
-                        modal.locator("select[name='offtaker']").select_option(label=offtaker_label)
-                    waiter.s()
+                        pass # Ignore interruption if we are redirected to auth
+                
+                waiter.m(); waiter.ui_quiet(page)
+                shots.save(page, "step21_yearly_import", "01_landing")
 
-                    modal.locator("input#nominationFile").set_input_files(str(csv_file))
-                    waiter.s()
-                    shot_ready = shots.save(page, "step2_import", "03_import_ready_before_upload")
+                try:
+                    _safe_click(page, page.get_by_role("button", name=re.compile("^Import Nominations Request$", re.I)), waiter, "Import Button")
+                except Exception:
+                    _safe_click(page, page.locator("text=Import Nominations Request").first, waiter, "Import Button Fallback")
 
-                    result, notes = ask_feedback(prompt, "Step 2", "Import nominations — modal ready")
-                    step2_note = notes
+                modal = get_open_dialog(page, waiter)
+                shots.save(page, "step21_yearly_import", "02_modal")
 
-                    _safe_click(page, modal.get_by_role("button", name=re.compile("^Upload$", re.I)), waiter, "Upload")
-                    shot_click = shots.save(page, "step2_import", "04_click_upload")
+                # Select Offtaker: Messer
+                try:
+                    _select_by_label_robust(page, modal.locator("select#offtaker"), "Messer Belgium NV", waiter)
+                except Exception:
+                    # Fallback to name or generic select
+                    _select_by_label_robust(page, modal.locator("select[name='offtaker']"), "Messer Belgium NV", waiter)
 
-                    # Attendre la fermeture et la stabilisation avant de bouger
+                # Select Year: 2027
+                try:
+                    _select_by_label_robust(page, modal.locator("select#year"), "2027", waiter)
+                except Exception:
+                    # Fallback to name or second select
+                    _select_by_label_robust(page, modal.locator("select[name='year']"), "2027", waiter)
+
+                # Upload File
+                if not Path(y_csv).exists():
+                    # Check if it exists relative to the script
+                    script_root = Path(__file__).parent
+                    if (script_root / y_csv).exists():
+                        y_csv = str(script_root / y_csv)
+
+                try:
+                    modal.locator("input#nominationFile").set_input_files(y_csv)
+                except Exception:
+                    modal.locator("input[type='file']").set_input_files(y_csv)
+                waiter.s()
+                shots.save(page, "step21_yearly_import", "03_ready")
+
+                _safe_click(page, modal.get_by_role("button", name=re.compile("^Upload$", re.I)), waiter, "Upload Button")
+                try:
+                    modal.wait_for(state="detached", timeout=15_000)
+                except Exception:
+                    pass
+                waiter.ui_quiet(page)
+                
+                shots.save(page, "step21_yearly_import", "04_after_import")
+
+                # After upload, click the '>' arrow to navigate to 2027
+                # Uses same date-picker pattern as week navigation elsewhere in the script
+                print("  [Step 21] Navigating to year 2027...")
+                try:
+                    page.wait_for_selector("div.date-picker-current", timeout=10000)
+                except Exception:
+                    pass
+                waiter.m()
+                
+                for _ in range(5):
                     try:
-                        modal.wait_for(state="detached", timeout=15_000)
-                    except PlaywrightTimeout:
+                        current_year = page.locator("div.date-picker-current > button").first.inner_text(timeout=3000).strip()
+                    except Exception:
+                        waiter.m()
+                        continue
+                    if current_year == "2027":
+                        print(f"    - Already on year {current_year}")
+                        break
+                    print(f"    - On year {current_year}, clicking next...")
+                    page.locator("div.date-picker-next > button").first.click()
+                    waiter.s(); waiter.ui_quiet(page)
+                
+                shots.save(page, "step21_yearly_import", "05_on_2027")
+                tlog.log("Step 21", "Yearly Import 2027", "PASS",
+                        shot_folder=str(shots.stepdir("step21_yearly_import")))
+                meta = devS["STEP21_YEARLY_IMPORT"]
+                summary.append(meta["id"], meta["desc"], meta["expected"], True, "", run_id, "Step 21")
+
+            # ═══════════════════════════════════════
+            # STEP 22 : Edit History & Breakdown
+            # ═══════════════════════════════════════
+            if start_step <= 22:
+                print("\n" + "=" * 50)
+                print("  STEP 22 : Edit History & Breakdown")
+                print("=" * 50)
+                capturer.set_step("step22_edit_history")
+                
+                # Navigate to yearly if not already there
+                if "nominations/yearly" not in page.url:
+                    try:
+                        page.goto(yearly_nominations_url or "https://herawebdev.azurewebsites.net/nominations/yearly", wait_until="domcontentloaded")
+                    except Exception:
                         pass
                     waiter.ui_quiet(page)
 
-                    if target_week is not None:
-                        goto_week(page, target_week, shots, "step2_import", waiter)
-                    waiter.m()
-                    shot_after = shots.save(page, "step2_import", "05_after_upload_on_week")
-
-                    tlog.log("Step 2","Import nominations", result, notes=notes,
-                             shot_before=shot_before, shot_modal=shot_modal,
-                             shot_action=shot_click, shot_after=shot_after,
-                             shot_folder=str(shots.stepdir("step2_import")))
-                    step2_success = (result.upper() == "PASS")
+                # Ensure we're on 2027 (should already be from Step 21)
+                print("  [Step 22] Verifying year is 2027...")
+                try:
+                    page.wait_for_selector("div.date-picker-current", timeout=10000)
+                except Exception:
+                    pass
+                waiter.m()
+                
+                try:
+                    current_year = page.locator("div.date-picker-current > button").first.inner_text(timeout=3000).strip()
+                    if current_year != "2027":
+                        print(f"    - On year {current_year}, navigating to 2027...")
+                        for _ in range(5):
+                            page.locator("div.date-picker-next > button").first.click()
+                            waiter.s(); waiter.ui_quiet(page)
+                            current_year = page.locator("div.date-picker-current > button").first.inner_text(timeout=3000).strip()
+                            if current_year == "2027":
+                                break
+                    print(f"    - Year confirmed: {current_year}")
                 except Exception as e:
-                    shot_err = shots.save(page, "step2_import", "04_error_upload")
-                    tlog.log("Step 2","Import nominations","FAIL", notes=notes, error=str(e),
-                             shot_before=shot_before, shot_modal=shot_modal,
-                             shot_action=shot_err, shot_after="",
-                             shot_folder=str(shots.stepdir("step2_import")))
-                    step2_success = False
+                    print(f"    - Year verification notice: {e}")
 
-            if step2_success is not None:
-                meta = TESTS["STEP2_IMPORT"]
-                summary.append(meta["id"], meta["desc"], meta["expected"], bool(step2_success), step2_note, run_id, "Step 2")
-
-            # ===== ÉTAPE 3 : Baseline Profiles (avant confirmations)
-            if start_step <= 3:
-                capturer.set_step("step3_profiles_before")
-                page.goto(profiles_url, wait_until="domcontentloaded")
-                waiter.m()
+                # 1. Select Offtaker on page (use the VISIBLE select: id='yearly-offtaker')
+                print("  [Step 22] Selecting Messer on page...")
+                waiter.l(); waiter.ui_quiet(page)
                 try:
-                    page.wait_for_selector("app-line-graph", timeout=15_000)
-                except PlaywrightTimeout:
-                    pass
-                if target_week is not None:
-                    goto_week(page, target_week, shots, "step3_profiles_before", waiter)
-                waiter.m()
-                shot_profiles = shots.save(page, "step3_profiles_before", "01_profiles_baseline")
-                result, notes = ask_feedback(prompt, "Step 3", "Profiles baseline")
-                tlog.log("Step 3","Profiles baseline", result, notes=notes,
-                         shot_after=shot_profiles, shot_folder=str(shots.stepdir("step3_profiles_before")))
-                
-                # Append to summary for Profiles
-                meta_p = TESTS["STEP3_PROFILES_BEFORE"]
-                summary.append(meta_p["id"], meta_p["desc"], meta_p["expected"], 
-                               bool(result.upper() == "PASS"), notes, run_id, "Step 3")
+                    offtaker_sel = page.locator("select#yearly-offtaker")
+                    offtaker_sel.select_option(label="Messer Belgium NV")
+                except Exception:
+                    # Fallback
+                    page.locator("select[name='offtaker']").last.select_option(label="Messer Belgium NV")
+                waiter.m(); waiter.ui_quiet(page)
+                shots.save(page, "step22_edit_history", "01_offtaker_selected")
 
-                # NOUVEAU : Occupancy Baseline
-                check_occupancy(page, occupancy_url, shots, tlog, summary, waiter, target_week, 
-                                "step3_profiles_before", "Step 3", run_id, "STEP3_OCCUPANCY_BASELINE", prompt)
-
-            # ===== ÉTAPE 4 : (optionnelle) Ajout via UI
-            if do_step4:
-                capturer.set_step("step4_add_ui")
-                page.goto(nominations_url, wait_until="domcontentloaded")
-                waiter.m()
-                if target_week is not None:
-                    goto_week(page, target_week, shots, "step4_add_ui", waiter)
-                add_nomination_ui(page, offtaker_label, shots, tlog, prompt_enabled=prompt, waiter=waiter)
-
-            # ===== ÉTAPE 5 : Confirmer N slots bleus
-            step5_success = None
-            step5_note = ""
-            if start_step <= 5:
-                capturer.set_step("step5_confirm")
-                page.goto(nominations_url, wait_until="domcontentloaded")
-                waiter.m()
-                if target_week is not None:
-                    goto_week(page, target_week, shots, "step5_confirm", waiter)
-
-                # Confirmer
-                conf = confirm_blue_slots(page, shots, tlog, max_to_confirm=confirm_n, prompt_enabled=prompt, waiter=waiter)
-                # Overview nomin. plein écran après confirm
-                overview5 = capture_week_overview(page, shots, "step5_confirm", "zz_week_overview_after_confirm", waiter)
-
-                # >>> NOUVEAU INTERSTEP : Nominations after confirm (week)
-                page.goto(nominations_url, wait_until="domcontentloaded")
-                waiter.m()
-                if target_week is not None:
-                    goto_week(page, target_week, shots, "step5_confirm", waiter)
-                waiter.m()
-                shot_nom_after_conf = capture_week_overview(page, shots, "step5_confirm", "zz_nominations_after_confirm", waiter)
-                result_noms5, notes_noms5 = ask_feedback(prompt, "Step 5", "Nominations after confirm (week)")
-                tlog.log("Step 5","Nominations after confirm", result_noms5, notes=notes_noms5,
-                         shot_after=shot_nom_after_conf, shot_folder=str(shots.stepdir("step5_confirm")))
-                # Ajout au Summary
-                meta5b = TESTS["STEP5_NOM_AFTER_CONFIRM"]
-                summary.append(meta5b["id"], meta5b["desc"], meta5b["expected"],
-                               bool(result_noms5.upper() == "PASS"), notes_noms5, run_id, "Step 5")
-
-                # Profiles après confirm
-                page.goto(profiles_url, wait_until="domcontentloaded")
-                waiter.m()
-                try:
-                    page.wait_for_selector("app-line-graph", timeout=15_000)
-                except PlaywrightTimeout:
-                    pass
-                if target_week is not None:
-                    goto_week(page, target_week, shots, "step5_confirm", waiter)
-                waiter.l()
-                shot_after_prof = shots.save(page, "step5_confirm", f"zz_profiles_after_confirm_{conf['done']}slots")
-                result, notes = ask_feedback(prompt, "Step 5", "Profiles after confirm")
-                tlog.log("Step 5","Profiles after confirm", result, notes=notes,
-                         shot_after=shot_after_prof, shot_folder=str(shots.stepdir("step5_confirm")))
-
-                # Append to summary for Profiles
-                meta_p = TESTS["STEP5_PROFILES_AFTER_CONFIRM"]
-                summary.append(meta_p["id"], meta_p["desc"], meta_p["expected"], 
-                               bool(result.upper() == "PASS"), notes, run_id, "Step 5")
-
-                # NOUVEAU : Occupancy after confirm
-                check_occupancy(page, occupancy_url, shots, tlog, summary, waiter, target_week, 
-                                "step5_confirm", "Step 5", run_id, "STEP5_OCCUPANCY_AFTER_CONFIRM", prompt)
-
-                # Détermination du succès Step 5 (toutes confirmations prévues + avis profiles)
-                step5_success = (conf["done"] >= min(confirm_n, conf["initial"])) and (result.upper() == "PASS")
-                step5_note = notes
-
-            if step5_success is not None:
-                meta = TESTS["STEP5_CONFIRM_OVERVIEW"]
-                summary.append(meta["id"], meta["desc"], meta["expected"], bool(step5_success), step5_note, run_id, "Step 5")
-
-            # ===== ÉTAPE 6 : Rejeter N slots bleus
-            step6_success = None
-            step6_note = ""
-            if start_step <= 6:
-                capturer.set_step("step6_reject")
-                page.goto(nominations_url, wait_until="domcontentloaded")
-                waiter.m()
-                if target_week is not None:
-                    goto_week(page, target_week, shots, "step6_reject", waiter)
-
-                rej = reject_blue_slots(page, shots, tlog, max_to_reject=reject_n, prompt_enabled=prompt, waiter=waiter)
-                # Overview nomin. plein écran après reject
-                overview6 = capture_week_overview(page, shots, "step6_reject", "zz_week_overview_after_reject", waiter)
-
-                # >>> NOUVEAU INTERSTEP : Nominations after reject (week)
-                page.goto(nominations_url, wait_until="domcontentloaded")
-                waiter.m()
-                if target_week is not None:
-                    goto_week(page, target_week, shots, "step6_reject", waiter)
-                waiter.m()
-                shot_nom_after_rej = capture_week_overview(page, shots, "step6_reject", "zz_nominations_after_reject", waiter)
-                result_noms6, notes_noms6 = ask_feedback(prompt, "Step 6", "Nominations after reject (week)")
-                tlog.log("Step 6","Nominations after reject", result_noms6, notes=notes_noms6,
-                         shot_after=shot_nom_after_rej, shot_folder=str(shots.stepdir("step6_reject")))
-                # Ajout au Summary
-                meta6b = TESTS["STEP6_NOM_AFTER_REJECT"]
-                summary.append(meta6b["id"], meta6b["desc"], meta6b["expected"],
-                               bool(result_noms6.upper() == "PASS"), notes_noms6, run_id, "Step 6")
-
-                # Profiles après rejets
-                page.goto(profiles_url, wait_until="domcontentloaded")
-                waiter.m()
-                try:
-                    page.wait_for_selector("app-line-graph", timeout=15_000)
-                except PlaywrightTimeout:
-                    pass
-                if target_week is not None:
-                    goto_week(page, target_week, shots, "step6_reject", waiter)
-                waiter.l()
-                shot_after_prof = shots.save(page, "step6_reject", f"zz_profiles_after_reject_{rej['done']}slots")
-                result, notes = ask_feedback(prompt, "Step 6", "Profiles after reject")
-                tlog.log("Step 6","Profiles after reject", result, notes=notes,
-                         shot_after=shot_after_prof, shot_folder=str(shots.stepdir("step6_reject")))
-
-                # Append to summary for Profiles
-                meta_p = TESTS["STEP6_PROFILES_AFTER_REJECT"]
-                summary.append(meta_p["id"], meta_p["desc"], meta_p["expected"], 
-                               bool(result.upper() == "PASS"), notes, run_id, "Step 6")
-
-                # NOUVEAU : Occupancy after reject
-                check_occupancy(page, occupancy_url, shots, tlog, summary, waiter, target_week, 
-                                "step6_reject", "Step 6", run_id, "STEP6_OCCUPANCY_AFTER_REJECT", prompt)
-
-                # Détermination du succès Step 6 (rejets + avis profiles)
-                step6_success = (rej["done"] >= min(reject_n, rej["initial"])) and (result.upper() == "PASS")
-                step6_note = notes
-
-            if step6_success is not None:
-                meta = TESTS["STEP6_REJECT_OVERVIEW"]
-                summary.append(meta["id"], meta["desc"], meta["expected"], bool(step6_success), step6_note, run_id, "Step 6")
-
-            # ===== ÉTAPE 7 : Confirm Week & Final Check
-            step7_success = None
-            step7_note = ""
-            if start_step <= 7:
-                capturer.set_step("step7_confirm_week")
-                # 1. Retour Nominations
-                page.goto(nominations_url, wait_until="domcontentloaded")
+                # 2. Click Validate Year (button text='Validate Year', class='button button-primary')
+                print("  [Step 22] Clicking Validate Year...")
+                validate_btn = page.locator("button", has_text="Validate Year").first
+                validate_btn.scroll_into_view_if_needed()
+                _safe_click(page, validate_btn, waiter, "Validate Year")
                 waiter.m()
                 
-                # FIX WHITE SCREEN: Refresh if week content not visible
-                try:
-                    page.wait_for_selector("div.week-view", timeout=4000)
-                except:
-                    print("  [Step 7] White screen detected? Refreshing page...")
-                    page.reload(wait_until="domcontentloaded")
-                    waiter.l()
+                # A "Year Validation" popup appears with Reject/Confirm/Close buttons
+                print("  [Step 22] Confirming Year Validation...")
+                confirm_modal = get_open_dialog(page, waiter)
+                shots.save(page, "step22_edit_history", "02a_validation_popup")
+                confirm_btn = confirm_modal.locator("button", has_text="Confirm").first
+                _safe_click(page, confirm_btn, waiter, "Confirm Year Validation")
+                waiter.l(); waiter.ui_quiet(page)
+                shots.save(page, "step22_edit_history", "02_after_validate")
 
-                if target_week is not None:
-                    # Toggle week fix: if week is correct but display glitchy, switch away and back
+                # 3. Click View History (button text='View History', class='button button-secondary')
+                print("  [Step 22] Opening View History...")
+                history_btn = page.locator("button", has_text="View History").first
+                history_btn.scroll_into_view_if_needed()
+                _safe_click(page, history_btn, waiter, "View History")
+                waiter.m(); waiter.ui_quiet(page)
+                modal = get_open_dialog(page, waiter)
+                shots.save(page, "step22_edit_history", "03_history_modal")
+
+                # 4. Click on the line with the lowest version (V1)
+                print(f"  [Step 22] Selecting lowest version (V1)...")
+                try:
+                    # Look for V1 specifically or the last row in the table
+                    v1_row = modal.locator("tr", has_text=re.compile(r"^V1$|^V1\s")).last
+                    _safe_click(page, v1_row, waiter, "Version V1")
+                except Exception:
+                    # Fallback: click the last row of the table
+                    _safe_click(page, modal.locator("tr").last, waiter, "Last Version Row")
+                
+                waiter.m(); waiter.ui_quiet(page)
+                shots.save(page, "step22_edit_history", "04_version_selected")
+
+                # 5. Modify Breakdown (Jan and W01)
+                # Cards use: div.card > span.card__data-title + span.card__data-value
+                # Values show "V: 20" format
+                print("  [Step 22] Modifying Jan and W01...")
+                
+                def reduce_card_value(label: str):
                     try:
-                        # Quick check visibility
-                        page.wait_for_selector("div.slot", timeout=3000)
-                    except:
-                        print("  [Step 7] Content missing? Toggling week to force refresh...")
-                        page.locator("div.date-picker-next > button").first.click()
+                        # 1. Find the card container
+                        card = page.locator("div.card, .breakdown-item, .item, [class*='card']").filter(has_text=re.compile(f"^{label}$", re.I)).first
+                        card.scroll_into_view_if_needed()
+                        
+                        # 2. Find the value and the element to click
+                        # First, check if there is an input already visible (based on latest screenshot)
+                        input_el = card.locator("input[type='number'], input").first
+                        val_el = None
+                        current_val = None
+                        
+                        if input_el.count() > 0 and input_el.is_visible():
+                            val_text = input_el.input_value()
+                            m = re.search(r"(\d+)", val_text)
+                            if m:
+                                current_val = int(m.group(1))
+                                val_el = input_el
+                                print(f"    - {label}: Found current value {current_val} in existing input.")
+                        
+                        # If no input, search for digits in text elements
+                        if val_el is None:
+                            all_elements = card.locator("*:not(:has(*))").all()
+                            for el in all_elements:
+                                t = (el.inner_text() or el.text_content() or "").strip()
+                                m = re.search(r"(\d+)", t)
+                                if m:
+                                    current_val = int(m.group(1))
+                                    val_el = el
+                                    if re.fullmatch(r"V:\s*\d+|\d+", t):
+                                        break
+                        
+                        if val_el is None:
+                            # Final fallback: just try to click the card center
+                            print(f"    - {label}: No numeric element found, will try clicking card center.")
+                            val_el = card
+                            current_val = 0 # Dummy value if we can't read it
+                        
+                        new_val = max(0, current_val - 2)
+                        print(f"    - {label}: Target {new_val}")
+                        
+                        # 3. Precise Interaction
+                        box = val_el.bounding_box()
+                        if box:
+                            page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                            time.sleep(0.2)
+                            page.mouse.dblclick(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                        else:
+                            val_el.click(force=True)
+                        
                         waiter.s()
-                        goto_week(page, target_week, shots, "step7_fix", waiter)
-                    
-                    goto_week(page, target_week, shots, "step7_confirm_week", waiter)
+                        
+                        # 4. Keyboard modification
+                        page.keyboard.press("Control+A")
+                        waiter.s()
+                        page.keyboard.press("Backspace")
+                        waiter.s()
+                        page.keyboard.type(str(new_val))
+                        waiter.s()
+                        page.keyboard.press("Enter")
+                        
+                        print(f"    - {label}: Value updated to {new_val}")
+                        waiter.m()
+                    except Exception as e:
+                        print(f"    - Failed to edit {label}: {e}")
 
-                # 2. Click Confirm Week
+                reduce_card_value("Jan")
+                reduce_card_value("W01")
+                
+                shots.save(page, "step22_edit_history", "05_after_edits")
+
+                # 6. Submit New Version (button text='Submit new version', class='button button-secondary')
+                print("  [Step 22] Submitting new version...")
+                submit_btn = page.locator("button", has_text="Submit new version").first
+                submit_btn.scroll_into_view_if_needed()
+                _safe_click(page, submit_btn, waiter, "Submit New Version")
+                waiter.ui_quiet(page)
+                waiter.l() # Wait for submission
+                shots.save(page, "step22_edit_history", "06_after_submit")
+
+                # 7. Verify in View History
+                print("  [Step 22] Verifying new version in history...")
+                history_btn2 = page.locator("button", has_text="View History").first
+                history_btn2.scroll_into_view_if_needed()
+                _safe_click(page, history_btn2, waiter, "View History")
+                waiter.m()
+                modal_v = get_open_dialog(page, waiter)
+                shots.save(page, "step22_edit_history", "07_history_final")
+                
+                # Close using the 'close' button inside the modal
+                _safe_click(page, modal_v.locator("button", has_text="close").first, waiter, "Close History")
+                waiter.ui_quiet(page)
+                
+                tlog.log("Step 22", "Edit History & Breakdown", "PASS",
+                        shot_folder=str(shots.stepdir("step22_edit_history")))
+                meta = devS["STEP22_EDIT_HISTORY"]
+                summary.append(meta["id"], meta["desc"], meta["expected"], True, "", run_id, "Step 22")
+
+            # ═══════════════════════════════════════
+            # STEP 23 : Chart View
+            # ═══════════════════════════════════════
+            if start_step <= 23:
+                print("\n" + "=" * 50)
+                print("  STEP 23 : Chart View")
+                print("=" * 50)
+                capturer.set_step("step23_chart_view")
+                
+                print("  [Step 23] Switching to Chart tab...")
+                # chart tab: button text='chart', class='button button-secondary'
+                chart_tab = page.locator("button", has_text="chart").first
+                chart_tab.scroll_into_view_if_needed()
+                _safe_click(page, chart_tab, waiter, "Chart Tab")
+                
+                waiter.l() # Wait for charts to render
+                waiter.ui_quiet(page)
+                shots.save(page, "step23_chart_view", "01_charts_visible", full_page=True)
+                
+                tlog.log("Step 23", "Chart View", "PASS",
+                        shot_folder=str(shots.stepdir("step23_chart_view")))
+                meta = devS["STEP23_CHART_VIEW"]
+                summary.append(meta["id"], meta["desc"], meta["expected"], True, "", run_id, "Step 23")
+
+            # ═══════════════════════════════════════
+            # STEP 24 : Truck Manager - Add Company
+            # ═══════════════════════════════════════
+            if start_step <= 24:
+                print("\n" + "=" * 50)
+                print("  STEP 24 : Truck Manager - Add Company")
+                print("=" * 50)
+                capturer.set_step("step24_add_company")
+                
+                print("  [Step 24] Navigating to Transport Companies...")
+                base_url = yearly_nominations_url.split("/nominations")[0]
+                target_url = f"{base_url}/truck-manager/transport-companies"
+                
                 try:
-                    btn = page.get_by_role("button", name=re.compile(r"Confirm Week", re.I)).first
-                    if not btn.is_visible():
-                         # Try alternate selector if button text differs
-                         btn = page.locator("button.button-primary", has_text=re.compile("Confirm.*Week", re.I)).first
-                    
-                    if btn.is_visible() and not btn.is_disabled():
-                         _safe_click(page, btn, waiter, "Confirm Week")
-                         
-                         # Handle potential confirmation modal if it appears (Defensive)
-                         try:
-                            modal = page.locator("dialog[open]").last
-                            if modal.is_visible(timeout=2000):
-                                confirm_btn = modal.get_by_role("button", name=re.compile("^Confirm$|^Yes$", re.I))
-                                _safe_click(page, confirm_btn, waiter, "Confirm Modal")
-                         except:
-                            pass
-                         
-                         shots.save(page, "step7_confirm_week", "01_after_confirm_week_click")
-                         result_s7, notes_s7 = ask_feedback(prompt, "Step 7", "Clicked Confirm Week")
-                    else:
-                         print("  [Step 7] Button 'Confirm Week' not found or disabled.")
-                         shots.save(page, "step7_confirm_week", "01_button_missing")
-                         result_s7, notes_s7 = "SKIP", "Button not found/disabled"
-
+                    page.goto(target_url, wait_until="load", timeout=30000)
                 except Exception as e:
-                    print(f"  [Step 7] Error clicking Confirm Week: {e}")
-                    result_s7, notes_s7 = "FAIL", str(e)
-
-                # 3. Final Profiles Check
-                page.goto(profiles_url, wait_until="domcontentloaded")
-                waiter.l() # Long wait for graph
-                if target_week is not None:
-                    goto_week(page, target_week, shots, "step7_final_check", waiter)
+                    print(f"  [Step 24] Navigation warning: {e}")
                 
-                shot_final = shots.save(page, "step7_final_check", "02_final_profiles_check", full_page=True)
+                # If redirected to login, wait
+                if "login.microsoftonline.com" in page.url:
+                    print("  [Step 24] Redirected to login. Waiting for session...")
+                    waiter.ui_quiet(page)
+                    if "login.microsoftonline.com" in page.url:
+                        time.sleep(5)
                 
-                result_final, notes_final = ask_feedback(prompt, "Step 7", "Final Profiles Graph Check")
-                tlog.log("Step 7", "Confirm Week & Final Profiles", result_final, notes=f"{notes_s7} | {notes_final}",
-                         shot_after=shot_final, shot_folder=str(shots.stepdir("step7_final_check")))
+                waiter.m(); waiter.ui_quiet(page)
+                shots.save(page, "step24_add_company", "01_page_loaded")
 
-                # Append to summary for Final Profiles
-                meta_p = TESTS["STEP7_PROFILES_FINAL"]
-                summary.append(meta_p["id"], meta_p["desc"], meta_p["expected"], 
-                               bool(result_final.upper() == "PASS"), notes_final, run_id, "Step 7")
+                # 1. Click Add New Company
+                print("  [Step 24] Clicking Add New Company...")
+                add_btn = page.locator("button", has_text="Add New Company").first
+                _safe_click(page, add_btn, waiter, "Add New Company Button")
+                waiter.m()
+                
+                modal = get_open_dialog(page, waiter)
+                shots.save(page, "step24_add_company", "02_add_modal_open")
 
-                # NOUVEAU : Final Occupancy Check
-                check_occupancy(page, occupancy_url, shots, tlog, summary, waiter, target_week, 
-                                "step7_final_check", "Step 7", run_id, "STEP7_OCCUPANCY_FINAL", prompt)
+                # 2. Fill Details
+                company_name = f"AutoTrans_{int(time.time())}"
+                company_vat = f"BE0{int(time.time()) % 1000000000:09d}"
+                
+                print(f"  [Step 24] Filling details for {company_name}...")
+                modal.locator("input#company-name").fill(company_name)
+                modal.locator("input#vat-number").fill(company_vat)
+                
+                # Address field
+                modal.locator("input#address").fill("123 Logistics Way, Antwerp 2000")
+                
+                # 3. Offtaker Mapping (Messer is offtaker_1)
+                print("  [Step 24] Selecting Messer Belgium NV...")
+                messer_cb = modal.locator("input#offtaker_1")
+                messer_label = modal.locator("label[for='offtaker_1']")
+                
+                # Force click the checkbox directly
+                _safe_click(page, messer_cb, waiter, "Messer Checkbox")
+                time.sleep(2) # Wait to see if selection was right
+                
+                # Verification and fallback to label
+                if not messer_cb.is_checked():
+                    print("  [Step 24] Checkbox not toggled, clicking label instead...")
+                    _safe_click(page, messer_label, waiter, "Messer Label")
+                    time.sleep(2)
+                
+                if messer_cb.is_checked():
+                    print("  [Step 24] Messer selection confirmed.")
+                else:
+                    print("  [WARNING] Messer selection could not be confirmed.")
+                
+                shots.save(page, "step24_add_company", "03_modal_filled")
 
-                step7_success = (result_final.upper() == "PASS")
-                step7_note = notes_final
+                # 4. Save
+                print("  [Step 24] Saving...")
+                save_btn = modal.locator("button", has_text="Save").first
+                _safe_click(page, save_btn, waiter, "Save Button")
+                waiter.l(); waiter.ui_quiet(page)
+                
+                shots.save(page, "step24_add_company", "04_after_save")
+                
+                # Verify it appeared in the list
+                if page.locator("td", has_text=company_name).count() > 0:
+                    print(f"  [Step 24] SUCCESS: Company {company_name} found in list.")
+                
+                tlog.log("Step 24", "Truck Manager - Add Company", "PASS",
+                        shot_folder=str(shots.stepdir("step24_add_company")))
+                summary.append("24", "Truck Manager - Add Company", "Company added and mapped", True, "", run_id, "Step 24")
 
-                if step7_success:
-                    meta = TESTS["STEP7_CONFIRM_WEEK"]
-                    summary.append(meta["id"], meta["desc"], meta["expected"], True, step7_note, run_id, "Step 7")
+            # ═══════════════════════════════════════
+            # STEP 25 : Truck Manager - Edit Company
+            # ═══════════════════════════════════════
+            if start_step <= 25:
+                print("\n" + "=" * 50)
+                print("  STEP 25 : Truck Manager - Edit Company")
+                print("=" * 50)
+                capturer.set_step("step25_edit_company")
+                
+                # We need the company name from step 24 or a fallback
+                # In a real run, we'd have it. For standalone, we can look for 'AutoTrans_'
+                target_name = ""
+                rows = page.locator("tr").filter(has_text="AutoTrans_").all()
+                if rows:
+                    # Get the name from the first cell of the last added company
+                    target_name = rows[-1].locator("td").first.inner_text().strip()
+                
+                if not target_name:
+                    print("  [Step 24] WARNING: No 'AutoTrans_' company found to edit. Skipping.")
+                else:
+                    print(f"  [Step 25] Editing company by clicking on name: {target_name}...")
+                    # The user says the rows are clickable and we should click on the name
+                    name_cell = page.locator("tr").filter(has_text=target_name).locator("td").first
+                    name_cell.scroll_into_view_if_needed()
+                    
+                    # Click on the name cell to open the modal
+                    _safe_click(page, name_cell, waiter, f"Name Cell for {target_name}")
+                    
+                    # Wait a bit and check if modal opened, if not, click again
+                    time.sleep(1)
+                    if page.locator("dialog[open], .modal.show").count() == 0:
+                        print("  [Step 25] Modal didn't open, retrying click...")
+                        _safe_click(page, name_cell, waiter, f"Name Cell for {target_name} (Retry)")
+                    
+                    waiter.m()
+                    modal = get_open_dialog(page, waiter)
+                    shots.save(page, "step25_edit_company", "01_edit_modal_open")
+                    
+                    # Modify Fields to end with '11' (replace last 2 chars)
+                    print(f"  [Step 25] Modifying fields to end with '11'...")
+                    
+                    # Replace last 2 chars of name
+                    new_name = target_name[:-2] + "11" if len(target_name) >= 2 else target_name + "11"
+                    modal.locator("input#company-name").fill(new_name)
+                    
+                    curr_vat = modal.locator("input#vat-number").input_value()
+                    # Replace last 2 chars of VAT
+                    new_vat = curr_vat[:-2] + "11" if len(curr_vat) >= 2 else curr_vat + "11"
+                    modal.locator("input#vat-number").fill(new_vat)
+                    
+                    modal.locator("input#address").fill("456 Modified Logistics Way, Ghent 9000")
+                    
+                    shots.save(page, "step25_edit_company", "02_fields_modified")
+                    
+                    # Save
+                    print("  [Step 25] Saving modifications...")
+                    save_btn = modal.locator("button", has_text="Save").first
+                    _safe_click(page, save_btn, waiter, "Save Button")
+                    waiter.l(); waiter.ui_quiet(page)
+                    
+                    shots.save(page, "step25_edit_company", "03_after_edit_save")
+                    
+                    # Verify
+                    if page.locator("td", has_text=f"{target_name}_Modified").count() > 0:
+                        print(f"  [Step 25] SUCCESS: Modified company found in list.")
+                    
+                    tlog.log("Step 25", "Truck Manager - Edit Company", "PASS",
+                            shot_folder=str(shots.stepdir("step25_edit_company")))
+                    summary.append("25", "Truck Manager - Edit Company", "Company modified successfully", True, "", run_id, "Step 25")
+# ═══════════════════════════════════════
+            # STEP 26 : Truck Manager - Add Truck
+            # ═══════════════════════════════════════
+            if start_step <= 26:
+                print("\n" + "=" * 50)
+                print("  STEP 26 : Truck Manager - Add Truck")
+                print("=" * 50)
+                capturer.set_step("step26_add_truck")
+
+                print("  [Step 26] Navigating to Trucks...")
+                base_url = yearly_nominations_url.split("/nominations")[0]
+                trucks_url = f"{base_url}/truck-manager/trucks"
+
+                try:
+                    page.goto(trucks_url, wait_until="load", timeout=30000)
+                except Exception as e:
+                    print(f"  [Step 26] Navigation warning: {e}")
+
+                if "login.microsoftonline.com" in page.url:
+                    print("  [Step 26] Redirected to login. Waiting for session...")
+                    waiter.ui_quiet(page)
+                    if "login.microsoftonline.com" in page.url:
+                        time.sleep(5)
+
+                waiter.m(); waiter.ui_quiet(page)
+                shots.save(page, "step26_add_truck", "01_page_loaded")
+
+                # Generate a unique plate: 2ABY + 3-digit suffix derived from timestamp
+                rand_suffix = int(time.time()) % 900 + 100   # 100-999
+                truck_plate = f"2ABY{rand_suffix}"
+
+                # 1. Open Add New Truck modal
+                print("  [Step 26] Clicking Add New Truck...")
+                add_btn = page.locator("button", has_text="Add New Truck").first
+                _safe_click(page, add_btn, waiter, "Add New Truck Button")
+                waiter.m()
+
+                modal = get_open_dialog(page, waiter)
+                shots.save(page, "step26_add_truck", "02_add_modal_open")
+
+                # 2. License Plate
+                print(f"  [Step 26] Filling license plate: {truck_plate}...")
+                modal.locator("input[placeholder='e.g. 1-ABC-123']").fill(truck_plate)
+                waiter.s()
+
+                # 3. Country Code
+                print("  [Step 26] Filling country code: B...")
+                modal.get_by_label("Country Code").fill("B")
+                waiter.s()
+
+                # 4. Transport Company (first real option, skipping "- SELECT -")
+                print("  [Step 26] Selecting Transport Company...")
+                company_select = modal.locator("select").first
+                company_select.select_option(index=1)
+                waiter.s()
+
+                # 5. Qualification State → Pre-Qualified
+                print("  [Step 26] Setting Qualification State to Pre-Qualified...")
+                qual_select = modal.locator("select").nth(1)
+                _select_by_label_robust(page, qual_select, "Pre-Qualified", waiter)
+                waiter.s()
+
+                shots.save(page, "step26_add_truck", "03_modal_filled")
+
+                # 6. Save
+                print("  [Step 26] Saving...")
+                waiter.s()
+
+                # On cherche le bouton Save (méthode souple)
+                save_btn = modal.locator("button", has_text="Save").first
+                _safe_click(page, save_btn, waiter, "Save Button")
+                
+                # Très important : on attend que le modal disparaisse avant de continuer
+                try:
+                    modal.wait_for(state="hidden", timeout=10000)
+                except Exception:
+                    print("  [Step 26] Warning: Modal took a long time to close...")
+                
+                waiter.l(); waiter.ui_quiet(page)
+                shots.save(page, "step26_add_truck", "04_after_save")
+
+                # Vérification avec un petit délai pour le rechargement du tableau
+                waiter.m()
+                if page.locator("td", has_text=truck_plate).count() > 0:
+                    print(f"  [Step 26] SUCCESS: Truck {truck_plate} found in list.")
+                else:
+                    print(f"  [Step 26] WARNING: Truck {truck_plate} not found in list after save.")
+
+                tlog.log("Step 26", "Truck Manager - Add Truck", "PASS",
+                        shot_folder=str(shots.stepdir("step26_add_truck")))
+                meta = devS["STEP26_ADD_TRUCK"]
+                summary.append(meta["id"], meta["desc"], meta["expected"], True, "", run_id, "Step 26")
+
+            # ═══════════════════════════════════════
+            # STEP 27 : Truck Manager - Edit Truck
+            # ═══════════════════════════════════════
+            if start_step <= 27:
+                print("\n" + "=" * 50)
+                print("  STEP 27 : Truck Manager - Edit Truck")
+                print("=" * 50)
+                capturer.set_step("step27_edit_truck")
+
+                # Ensure we are on the trucks page
+                print("  [Step 27] Navigating to Trucks...")
+                base_url = yearly_nominations_url.split("/nominations")[0]
+                trucks_url = f"{base_url}/truck-manager/trucks"
+
+                try:
+                    page.goto(trucks_url, wait_until="load", timeout=30000)
+                except Exception as e:
+                    print(f"  [Step 27] Navigation warning: {e}")
+
+                if "login.microsoftonline.com" in page.url:
+                    print("  [Step 27] Redirected to login. Waiting for session...")
+                    waiter.ui_quiet(page)
+                    if "login.microsoftonline.com" in page.url:
+                        time.sleep(5)
+
+                waiter.m(); waiter.ui_quiet(page)
+
+                # Resolve the plate to edit: use step 26's variable if available,
+                # otherwise fall back to the last '2ABY' row on the current page.
+                try:
+                    target_plate = truck_plate
+                except NameError:
+                    target_plate = ""
+                    rows = page.locator("tr").filter(has_text="2ABY").all()
+                    if rows:
+                        raw = rows[-1].locator("td").first.inner_text().strip()
+                        target_plate = raw.split(" ")[0]  # strip "(B)" suffix if present
+
+                if not target_plate:
+                    print("  [Step 27] WARNING: No '2ABY' truck found to edit. Skipping.")
+                else:
+                    updated_plate = "1AA" + target_plate[3:]   # e.g. 2ABY893 → AABY893
+                    print(f"  [Step 27] Editing {target_plate} → {updated_plate}...")
+
+                    # On cible la première cellule (td) de la ligne qui contient la plaque
+                    plate_cell = page.locator("tr").filter(has_text=target_plate).locator("td").first
+                    plate_cell.scroll_into_view_if_needed()
+
+                    # On clique directement sur le texte de la plaque
+                    _safe_click(page, plate_cell, waiter, f"Plate Cell for {target_plate}")
+
+                    time.sleep(1)
+                    # Si le modal n'est pas ouvert (dialog ou .modal), on retente
+                    if page.locator("dialog[open], .modal.show").count() == 0:
+                        print("  [Step 27] Modal didn't open, retrying click...")
+                        _safe_click(page, plate_cell, waiter, f"Plate Cell for {target_plate} (Retry)")
+
+                    waiter.m()
+                    modal = get_open_dialog(page, waiter)
+                    shots.save(page, "step27_edit_truck", "01_edit_modal_open")
+
+                    # Update license plate: replace first 2 chars with 'AA'
+                    print(f"  [Step 27] Updating license plate to {updated_plate}...")
+                    plate_input = modal.locator("input[placeholder='e.g. 1-ABC-123']")
+                    plate_input.fill(updated_plate)
+                    waiter.s()
+
+                    # Update Qualification State to Qualified
+                    print("  [Step 27] Updating Qualification State to Qualified...")
+                    qual_select = modal.locator("select").nth(1)
+                    _select_by_label_robust(page, qual_select, "Qualified", waiter)
+                    waiter.s()
+
+                    # Date of 1st Qualification → today (Frappe séquentielle au clavier)
+                    today_digits = datetime.now().strftime("%d%m%Y") 
+                    print(f"  [Step 27] Typing Date of 1st Qualification sequentially: {today_digits}...")
+                    try:
+                        date_input = modal.locator("input[placeholder*='dd/mm/yyyy']").first
+                        date_input.click(timeout=3000)
+                    except Exception:
+                        date_input = modal.locator("input").last
+                        date_input.click()
+
+                    waiter.s()
+                    page.keyboard.press("Home")
+                    page.keyboard.press("ArrowLeft")
+                    page.keyboard.press("ArrowLeft")
+                    page.keyboard.type(today_digits, delay=100)
+                    waiter.s()
+
+                    shots.save(page, "step27_edit_truck", "02_plate_modified")
+
+                    # Save
+                    print("  [Step 27] Saving modifications...")
+                    page.keyboard.press("Tab")
+                    waiter.s()
+                    save_btn = modal.locator("button", has_text="Save").first
+                    _safe_click(page, save_btn, waiter, "Save Button")
+                    waiter.l(); waiter.ui_quiet(page)
+
+                    shots.save(page, "step27_edit_truck", "03_after_edit_save")
+
+                    if page.locator("td", has_text=updated_plate).count() > 0:
+                        print(f"  [Step 27] SUCCESS: Updated truck {updated_plate} found in list.")
+                    else:
+                        print(f"  [Step 27] WARNING: {updated_plate} not visible (may need scroll).")
+
+                    tlog.log("Step 27", "Truck Manager - Edit Truck", "PASS",
+                            shot_folder=str(shots.stepdir("step27_edit_truck")))
+                    meta = devS["STEP27_EDIT_TRUCK"]
+                    summary.append(meta["id"], meta["desc"], meta["expected"], True, "", run_id, "Step 27")
+
+            # ═══════════════════════════════════════
+            # STEP 28 : Truck Manager - Add Trailer
+            # ═══════════════════════════════════════
+            if start_step <= 28:
+                print("\n" + "=" * 50)
+                print("  STEP 28 : Truck Manager - Add Trailer")
+                print("=" * 50)
+                capturer.set_step("step28_add_trailer")
+
+                print("  [Step 28] Navigating to Trailers...")
+                base_url = yearly_nominations_url.split("/nominations")[0]
+                trailers_url = f"{base_url}/truck-manager/trailers"
+
+                try:
+                    page.goto(trailers_url, wait_until="load", timeout=30000)
+                except Exception as e:
+                    print(f"  [Step 28] Navigation warning: {e}")
+
+                if "login.microsoftonline.com" in page.url:
+                    print("  [Step 28] Redirected to login. Waiting for session...")
+                    waiter.ui_quiet(page)
+                    if "login.microsoftonline.com" in page.url:
+                        time.sleep(5)
+
+                waiter.m(); waiter.ui_quiet(page)
+                shots.save(page, "step28_add_trailer", "01_page_loaded")
+
+                # Generate a unique plate: 3TRL + 3-digit suffix
+                rand_suffix = int(time.time()) % 900 + 100   # 100-999
+                trailer_plate = f"3TRL{rand_suffix}"
+
+                # 1. Open Add New Trailer modal
+                print("  [Step 28] Clicking Add New Trailer...")
+                add_btn = page.locator("button", has_text="Add New Trailer").first
+                _safe_click(page, add_btn, waiter, "Add New Trailer Button")
+                waiter.m()
+
+                modal = get_open_dialog(page, waiter)
+                shots.save(page, "step28_add_trailer", "02_add_modal_open")
+
+                # 2. License Plate
+                print(f"  [Step 28] Filling license plate: {trailer_plate}...")
+                modal.locator("input[placeholder='e.g. 1-ABC-123']").fill(trailer_plate)
+                waiter.s()
+
+                # 3. Country Code
+                print("  [Step 28] Filling country code: B...")
+                try:
+                    modal.get_by_label("Country Code").fill("B")
+                except:
+                    # Fallback au cas où get_by_label échoue
+                    modal.locator("input").nth(1).fill("B")
+                waiter.s()
+
+                # 4. Offtaker Company (1er select)
+                print("  [Step 28] Selecting Offtaker Company...")
+                offtaker_select = modal.locator("select").nth(0)
+                offtaker_select.select_option(index=1)
+                waiter.s()
+
+                # 5. Trailer Type (2ème select)
+                print("  [Step 28] Selecting Trailer Type...")
+                type_select = modal.locator("select").nth(1)
+                type_select.select_option(index=1)
+                waiter.s()
+
+                # 6. Global Max Flow Rate
+                print("  [Step 28] Filling Global Max Flow Rate...")
+                try:
+                    modal.locator("input[placeholder='e.g. 32.5']").fill("30.5")
+                except:
+                    modal.locator("input").nth(2).fill("30.5")
+                waiter.s()
+
+                # 7. Qualification Status → Pre-Qualified (3ème select)
+                print("  [Step 28] Setting Qualification State to Pre-Qualified...")
+                qual_select = modal.locator("select").nth(2)
+                _select_by_label_robust(page, qual_select, "Pre-Qualified", waiter)
+                waiter.s()
+
+                shots.save(page, "step28_add_trailer", "03_modal_filled")
+
+                # 8. Save
+                print("  [Step 28] Saving...")
+                waiter.s()
+
+                save_btn = modal.locator("button", has_text="Save").first
+                _safe_click(page, save_btn, waiter, "Save Button")
+                
+                try:
+                    modal.wait_for(state="hidden", timeout=10000)
+                except Exception:
+                    print("  [Step 28] Warning: Modal took a long time to close...")
+                
+                waiter.l(); waiter.ui_quiet(page)
+                shots.save(page, "step28_add_trailer", "04_after_save")
+
+                waiter.m()
+                if page.locator("td", has_text=trailer_plate).count() > 0:
+                    print(f"  [Step 28] SUCCESS: Trailer {trailer_plate} found in list.")
+                else:
+                    print(f"  [Step 28] WARNING: Trailer {trailer_plate} not found in list after save.")
+
+                tlog.log("Step 28", "Truck Manager - Add Trailer", "PASS",
+                        shot_folder=str(shots.stepdir("step28_add_trailer")))
+                summary.append("T-28", "Truck Manager - Add Trailer", "Trailer added successfully", True, "", run_id, "Step 28")
+
+            # ═══════════════════════════════════════
+            # STEP 29 : Truck Manager - Edit Trailer
+            # ═══════════════════════════════════════
+            if start_step <= 29:
+                print("\n" + "=" * 50)
+                print("  STEP 29 : Truck Manager - Edit Trailer")
+                print("=" * 50)
+                capturer.set_step("step29_edit_trailer")
+
+                # Ensure we are on the trailers page
+                print("  [Step 29] Navigating to Trailers...")
+                base_url = yearly_nominations_url.split("/nominations")[0]
+                trailers_url = f"{base_url}/truck-manager/trailers"
+
+                try:
+                    page.goto(trailers_url, wait_until="load", timeout=30000)
+                except Exception as e:
+                    print(f"  [Step 29] Navigation warning: {e}")
+
+                if "login.microsoftonline.com" in page.url:
+                    print("  [Step 29] Redirected to login. Waiting for session...")
+                    waiter.ui_quiet(page)
+                    if "login.microsoftonline.com" in page.url:
+                        time.sleep(5)
+
+                waiter.m(); waiter.ui_quiet(page)
+
+                # Récupère la plaque créée ou la dernière plaque "3TRL" visible
+                try:
+                    target_trailer = trailer_plate
+                except NameError:
+                    target_trailer = ""
+                    rows = page.locator("tr").filter(has_text="3TRL").all()
+                    if rows:
+                        raw = rows[-1].locator("td").first.inner_text().strip()
+                        target_trailer = raw.split(" ")[0]
+
+                if not target_trailer:
+                    print("  [Step 29] WARNING: No '3TRL' trailer found to edit. Skipping.")
+                else:
+                    # On remplace le '3' du début par un '1' pour l'édition
+                    updated_trailer = "1TRL" + target_trailer[4:]
+                    print(f"  [Step 29] Editing {target_trailer} → {updated_trailer}...")
+
+                    # Clic sur la plaque pour ouvrir
+                    plate_cell = page.locator("tr").filter(has_text=target_trailer).locator("td").first
+                    plate_cell.scroll_into_view_if_needed()
+                    _safe_click(page, plate_cell, waiter, f"Plate Cell for {target_trailer}")
+
+                    time.sleep(1)
+                    if page.locator("dialog[open], .modal.show").count() == 0:
+                        print("  [Step 29] Modal didn't open, retrying click...")
+                        _safe_click(page, plate_cell, waiter, f"Plate Cell for {target_trailer} (Retry)")
+
+                    waiter.m()
+                    modal = get_open_dialog(page, waiter)
+                    shots.save(page, "step29_edit_trailer", "01_edit_modal_open")
+
+                    # Modification de la plaque
+                    print(f"  [Step 29] Updating license plate to {updated_trailer}...")
+                    plate_input = modal.locator("input[placeholder='e.g. 1-ABC-123']")
+                    plate_input.fill(updated_trailer)
+                    waiter.s()
+
+                    # Update Qualification State to Qualified
+                    print("  [Step 29] Updating Qualification State to Qualified...")
+                    qual_select = modal.locator("select").nth(2)
+                    _select_by_label_robust(page, qual_select, "Qualified", waiter)
+                    waiter.s()
+
+                    # Date of 1st Qualification → today (Frappe séquentielle)
+                    today_digits = datetime.now().strftime("%d%m%Y") 
+                    print(f"  [Step 29] Typing Date of 1st Qualification sequentially: {today_digits}...")
+                    try:
+                        date_input = modal.locator("input[placeholder*='dd/mm/yyyy']").first
+                        date_input.click(timeout=3000)
+                    except Exception:
+                        date_input = modal.locator("input").last
+                        date_input.click()
+
+                    waiter.s()
+                    page.keyboard.press("Home")
+                    page.keyboard.press("ArrowLeft")
+                    page.keyboard.press("ArrowLeft")
+                    page.keyboard.type(today_digits, delay=100)
+                    waiter.s()
+
+                    shots.save(page, "step29_edit_trailer", "02_plate_modified")
+
+                    # Sauvegarde
+                    print("  [Step 29] Saving modifications...")
+                    page.keyboard.press("Tab")
+                    waiter.s()
+                    save_btn = modal.locator("button", has_text="Save").first
+                    _safe_click(page, save_btn, waiter, "Save Button")
+                    
+                    try:
+                        modal.wait_for(state="hidden", timeout=10000)
+                    except Exception:
+                        pass
+
+                    waiter.l(); waiter.ui_quiet(page)
+                    shots.save(page, "step29_edit_trailer", "03_after_edit_save")
+
+                    if page.locator("td", has_text=updated_trailer).count() > 0:
+                        print(f"  [Step 29] SUCCESS: Updated trailer {updated_trailer} found in list.")
+                    else:
+                        print(f"  [Step 29] WARNING: {updated_trailer} not visible (may need scroll).")
+
+                    tlog.log("Step 29", "Truck Manager - Edit Trailer", "PASS",
+                            shot_folder=str(shots.stepdir("step29_edit_trailer")))
+                    summary.append("T-29", "Truck Manager - Edit Trailer", "Trailer modified successfully", True, "", run_id, "Step 29")
+
+# ═══════════════════════════════════════
+            # STEP 30 : Truck Manager - Add Driver
+            # ═══════════════════════════════════════
+            if start_step <= 30:
+                print("\n" + "=" * 50)
+                print("  STEP 30 : Truck Manager - Add Driver")
+                print("=" * 50)
+                capturer.set_step("step30_add_driver")
+
+                print("  [Step 30] Navigating to Drivers...")
+                base_url = yearly_nominations_url.split("/nominations")[0]
+                drivers_url = f"{base_url}/truck-manager/drivers"
+
+                try:
+                    page.goto(drivers_url, wait_until="load", timeout=30000)
+                except Exception as e:
+                    print(f"  [Step 30] Navigation warning: {e}")
+
+                if "login.microsoftonline.com" in page.url:
+                    print("  [Step 30] Redirected to login. Waiting for session...")
+                    waiter.ui_quiet(page)
+                    if "login.microsoftonline.com" in page.url:
+                        time.sleep(5)
+
+                waiter.m(); waiter.ui_quiet(page)
+                shots.save(page, "step30_add_driver", "01_page_loaded")
+
+                # Variables uniques
+                rand_suffix = int(time.time()) % 9000 + 1000   # 1000-9999
+                driver_last_name = f"AutoDriver{rand_suffix}"
+                badge_id = f"000000{rand_suffix}" # Toujours 10 chars
+                adr_card = f"ADR-999{rand_suffix}"
+
+                # 1. Open Add New Driver modal
+                print("  [Step 30] Clicking Add New Driver...")
+                add_btn = page.locator("button", has_text="Add New Driver").first
+                _safe_click(page, add_btn, waiter, "Add New Driver Button")
+                waiter.m()
+
+                modal = get_open_dialog(page, waiter)
+                shots.save(page, "step30_add_driver", "02_add_modal_open")
+
+                # 2. Last Name & First Name
+                print(f"  [Step 30] Filling names: {driver_last_name} John...")
+                modal.locator("input").nth(0).fill(driver_last_name)
+                modal.locator("input").nth(1).fill("John")
+                waiter.s()
+
+                # 3. Transport Company (1er select)
+                print("  [Step 30] Selecting Transport Company...")
+                company_select = modal.locator("select").nth(0)
+                company_select.select_option(index=1)
+                waiter.s()
+
+                # 4. Badge ID
+                print("  [Step 30] Filling Badge ID...")
+                modal.locator("input[placeholder='e.g. 0123456789']").fill(badge_id)
+                waiter.s()
+
+                # 5. ADR Card Number
+                print("  [Step 30] Filling ADR Card...")
+                modal.locator("input[placeholder='e.g. ADR-9876543']").fill(adr_card)
+                waiter.s()
+
+                # 6. Qualification Status → Pre-Qualified (2ème select)
+                print("  [Step 30] Setting Qualification State to Pre-Qualified...")
+                qual_select = modal.locator("select").nth(1)
+                _select_by_label_robust(page, qual_select, "Pre-Qualified", waiter)
+                waiter.s()
+
+                shots.save(page, "step30_add_driver", "03_modal_filled")
+
+                # 7. Save
+                print("  [Step 30] Saving...")
+                waiter.s()
+
+                save_btn = modal.locator("button", has_text="Save").first
+                _safe_click(page, save_btn, waiter, "Save Button")
+                
+                try:
+                    modal.wait_for(state="hidden", timeout=10000)
+                except Exception:
+                    print("  [Step 30] Warning: Modal took a long time to close...")
+                
+                waiter.l(); waiter.ui_quiet(page)
+                shots.save(page, "step30_add_driver", "04_after_save")
+
+                waiter.m()
+                if page.locator("td", has_text=driver_last_name).count() > 0:
+                    print(f"  [Step 30] SUCCESS: Driver {driver_last_name} found in list.")
+                else:
+                    print(f"  [Step 30] WARNING: Driver {driver_last_name} not found in list after save.")
+
+                tlog.log("Step 30", "Truck Manager - Add Driver", "PASS", shot_folder=str(shots.stepdir("step30_add_driver")))
+                summary.append("D-30", "Truck Manager - Add Driver", "Driver added successfully", True, "", run_id, "Step 30")
+
+            # ═══════════════════════════════════════
+            # STEP 31 : Truck Manager - Edit Driver
+            # ═══════════════════════════════════════
+            if start_step <= 31:
+                print("\n" + "=" * 50)
+                print("  STEP 31 : Truck Manager - Edit Driver")
+                print("=" * 50)
+                capturer.set_step("step31_edit_driver")
+
+                # Ensure we are on the drivers page
+                print("  [Step 31] Navigating to Drivers...")
+                base_url = yearly_nominations_url.split("/nominations")[0]
+                drivers_url = f"{base_url}/truck-manager/drivers"
+
+                try:
+                    page.goto(drivers_url, wait_until="load", timeout=30000)
+                except Exception as e:
+                    print(f"  [Step 31] Navigation warning: {e}")
+
+                if "login.microsoftonline.com" in page.url:
+                    print("  [Step 31] Redirected to login. Waiting for session...")
+                    waiter.ui_quiet(page)
+                    if "login.microsoftonline.com" in page.url:
+                        time.sleep(5)
+
+                waiter.m(); waiter.ui_quiet(page)
+
+                # Récupère le nom créé
+                try:
+                    target_driver = driver_last_name
+                except NameError:
+                    target_driver = ""
+                    rows = page.locator("tr").filter(has_text="AutoDriver").all()
+                    if rows:
+                        # En général le nom de famille est la première chose dans la cellule
+                        raw = rows[-1].locator("td").first.inner_text().strip()
+                        target_driver = raw.split("\n")[0].split()[0]
+
+                if not target_driver:
+                    print("  [Step 31] WARNING: No 'AutoDriver' found to edit. Skipping.")
+                else:
+                    updated_driver = target_driver + "Mod"
+                    print(f"  [Step 31] Editing {target_driver} → {updated_driver}...")
+
+                    # Clic sur le nom pour ouvrir
+                    name_cell = page.locator("tr").filter(has_text=target_driver).locator("td").first
+                    name_cell.scroll_into_view_if_needed()
+                    _safe_click(page, name_cell, waiter, f"Name Cell for {target_driver}")
+
+                    time.sleep(1)
+                    if page.locator("dialog[open], .modal.show").count() == 0:
+                        print("  [Step 31] Modal didn't open, retrying click...")
+                        _safe_click(page, name_cell, waiter, f"Name Cell for {target_driver} (Retry)")
+
+                    waiter.m()
+                    modal = get_open_dialog(page, waiter)
+                    shots.save(page, "step31_edit_driver", "01_edit_modal_open")
+
+                    # Modification du Last Name
+                    print(f"  [Step 31] Updating Last Name to {updated_driver}...")
+                    modal.locator("input").nth(0).fill(updated_driver)
+                    waiter.s()
+
+                    # Update Qualification State to Qualified
+                    print("  [Step 31] Updating Qualification State to Qualified...")
+                    qual_select = modal.locator("select").nth(1)
+                    _select_by_label_robust(page, qual_select, "Qualified", waiter)
+                    waiter.s()
+
+                    # Dates (1st Qualification & Last Validated Training) -> today
+                    today_digits = datetime.now().strftime("%d%m%Y") 
+                    print(f"  [Step 31] Typing dates sequentially: {today_digits}...")
+                    
+                    # On cible TOUS les champs input. Les dates sont systématiquement les deux derniers.
+                    all_inputs = modal.locator("input:not([type='hidden'])")
+                    
+                    # Première date (avant-dernier input)
+                    print("  [Step 31] Filling Date of 1st Qualification...")
+                    all_inputs.nth(-2).click(timeout=3000)
+                    waiter.s()
+                    page.keyboard.press("Home")
+                    page.keyboard.press("ArrowLeft")
+                    page.keyboard.press("ArrowLeft")
+                    page.keyboard.type(today_digits, delay=100)
+                    waiter.s()
+
+                    # Deuxième date (dernier input)
+                    print("  [Step 31] Filling Date of Last Validated Training...")
+                    all_inputs.nth(-1).click(timeout=3000)
+                    waiter.s()
+                    page.keyboard.press("Home")
+                    page.keyboard.press("ArrowLeft")
+                    page.keyboard.press("ArrowLeft")
+                    page.keyboard.type(today_digits, delay=100)
+                    waiter.s()
+
+                    shots.save(page, "step31_edit_driver", "02_name_modified")
+
+                    # Sauvegarde
+                    print("  [Step 31] Saving modifications...")
+                    page.keyboard.press("Tab")
+                    waiter.s()
+                    save_btn = modal.locator("button", has_text="Save").first
+                    _safe_click(page, save_btn, waiter, "Save Button")
+                    
+                    try:
+                        modal.wait_for(state="hidden", timeout=10000)
+                    except Exception:
+                        pass
+
+                    waiter.l(); waiter.ui_quiet(page)
+                    shots.save(page, "step31_edit_driver", "03_after_edit_save")
+
+                    if page.locator("td", has_text=updated_driver).count() > 0:
+                        print(f"  [Step 31] SUCCESS: Updated driver {updated_driver} found in list.")
+                    else:
+                        print(f"  [Step 31] WARNING: {updated_driver} not visible (may need scroll).")
+
+                    tlog.log("Step 31", "Truck Manager - Edit Driver", "PASS", shot_folder=str(shots.stepdir("step31_edit_driver")))
+                    summary.append("D-31", "Truck Manager - Edit Driver", "Driver modified successfully", True, "", run_id, "Step 31")
+
+            print("\n" + "=" * 50)
+            print("  ALL 31 STEPS COMPLETE")
+            print("=" * 50)
             
-                if step7_success:
-                    meta = TESTS["STEP7_CONFIRM_WEEK"]
-                    summary.append(meta["id"], meta["desc"], meta["expected"], True, step7_note, run_id, "Step 7")
-            
-            # ===== ÉTAPE 8 : Occupancy Check (REDUNDANT - Now integrated)
-            # if start_step <= 8:
-            #     ...
+            # On coupe le listener pour éviter l'erreur CancelledError
+            capturer.stop_capturing(page)
 
     finally:
-        # C'est ici que la magie opère pour le formatage Excel
         print("Formatting Excel reports...")
-        tlog.finalize() 
+        tlog.finalize()
         summary.finalize()
 
-        # >>> Baseline Check
         print("Checking against baseline...")
         bm = BaselineManager(Path("baseline"))
         res = bm.compare_and_report(artifacts / run_id)
         if res["status"] == "FAIL":
-            print("\n⚠️ WARNING: Baseline mismatches found! Check logs above.")
-        
+            print("\n WARNING: Baseline mismatches found! Check logs above.")
+
+
 # =========================
 # CLI
 # =========================
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="HERA smoke: import, baseline, confirm (5), reject (6) avec captures overview + Summary Excel (+ intersteps nominations).")
+    parser = argparse.ArgumentParser(
+        description="HERA 15-step smoke dev: import, baseline, confirm, reject, bulk actions.")
     parser.add_argument("--nominations-url",
-                        default=os.getenv("HERA_NOMINATIONS_URL", "https://herawebdev.azurewebsites.net/nominations/weekly"))
+                        default=os.getenv("HERA_NOMINATIONS_URL",
+                                          "https://herawebdev.azurewebsites.net/nominations/weekly"))
     parser.add_argument("--profiles-url",
-                        default=os.getenv("HERA_PROFILES_URL", "https://herawebdev.azurewebsites.net/schedules/profiles"))
+                        default=os.getenv("HERA_PROFILES_URL",
+                                          "https://herawebdev.azurewebsites.net/schedules/profiles"))
     parser.add_argument("--occupancy-url",
-                        default=os.getenv("HERA_OCCUPANCY_URL", "https://herawebdev.azurewebsites.net/schedules/occupancy"))
+                        default=os.getenv("HERA_OCCUPANCY_URL",
+                                          "https://herawebdev.azurewebsites.net/schedules/occupancy"))
+    parser.add_argument("--costs-url",
+                        default=os.getenv("HERA_COSTS_URL",
+                                          "https://herawebdev.azurewebsites.net/schedules/costs-breakdown"))
+    parser.add_argument("--maintenance-url",
+                        default=os.getenv("HERA_MAINTENANCE_URL",
+                                          "https://herawebdev.azurewebsites.net/schedules/maintenance"))
+    parser.add_argument("--yearly-nominations-url",
+                        default=os.getenv("HERA_YEARLY_NOMINATIONS_URL",
+                                          "https://herawebdev.azurewebsites.net/nominations/yearly"))
+    parser.add_argument("--yearly-csv",
+                        default=os.getenv("HERA_YEARLY_CSV_PATH", "Yearly_nomination_2027.csv"))
     parser.add_argument("--csv",
-                        default=os.getenv("HERA_CSV_PATH", r".\Messer_Nomination_Week52.csv"))
+                        default=os.getenv("HERA_CSV_PATH", r".\Messer_Nomination_Week18.csv"))
     parser.add_argument("--slowmo", type=int,
                         default=int(os.getenv("HERA_SLOWMO", "0")))
-    parser.add_argument("--start-step", type=int, choices=[2,3,4,5,6,7,8],
-                        default=int(os.getenv("HERA_START_STEP", "2")),
-                        help="2=tout; 3=baseline; 4=ajout UI; 5=confirm; 6=reject; 7=finalize; 8=occupancy.")
-    parser.add_argument("--do-step4", action="store_true", help="Exécuter aussi l'étape 4 (ajout UI).")
-    parser.add_argument("--confirm-n", type=int, default=int(os.getenv("HERA_CONFIRM_N", "5")),
-                        help="Nombre max de slots bleus à confirmer (étape 5).")
-    parser.add_argument("--reject-n", type=int, default=int(os.getenv("HERA_REJECT_N", "5")),
-                        help="Nombre max de slots bleus à rejeter (étape 6).")
-    parser.add_argument("--env", default=os.getenv("HERA_ENV","dev"), help="Nom d'environnement (dev/qa/prod/...).")
-    parser.add_argument("--no-prompt", action="store_true", help="Désactive les questions testeur (tout marqué PASS).")
-    parser.add_argument("--excel-log", default=os.getenv("HERA_EXCEL_LOG",""), help="Excel détaillé (onglet 'Test Log').")
-    parser.add_argument("--excel-summary", default=os.getenv("HERA_EXCEL_SUMMARY",""), help="Excel résumé (onglet 'Summary': TestID/Description/Expected/Success/Note).")
-    parser.add_argument("--severity-default", default=os.getenv("HERA_SEVERITY_DEFAULT","Medium"), help="Sévérité par défaut (Low/Medium/High).")
-
-    # Nouveaux réglages d'attente
-    parser.add_argument("--wait-s", type=float, default=float(os.getenv("HERA_WAIT_S", "0.2")),
-                        help="Pause courte après une action (par défaut 0.2s).")
-    parser.add_argument("--wait-m", type=float, default=float(os.getenv("HERA_WAIT_M", "0.6")),
-                        help="Pause moyenne après navigation / ouverture modal (par défaut 0.6s).")
-    parser.add_argument("--wait-l", type=float, default=float(os.getenv("HERA_WAIT_L", "1.2")),
-                        help="Pause longue avant une lecture sensible (par défaut 1.2s).")
+    parser.add_argument("--env",
+                        default=os.getenv("HERA_ENV", "dev"))
+    parser.add_argument("--no-prompt", action="store_true",
+                        help="Disable dever prompts (auto-PASS).")
+    parser.add_argument("--start-step", type=int, default=1,
+                        help="Start from a specific step (1-27).")
+    parser.add_argument("--excel-log", default=os.getenv("HERA_EXCEL_LOG", ""))
+    parser.add_argument("--excel-summary", default=os.getenv("HERA_EXCEL_SUMMARY", ""))
+    parser.add_argument("--severity-default",
+                        default=os.getenv("HERA_SEVERITY_DEFAULT", "Medium"))
+    parser.add_argument("--wait-s", type=float,
+                        default=float(os.getenv("HERA_WAIT_S", "0.2")))
+    parser.add_argument("--wait-m", type=float,
+                        default=float(os.getenv("HERA_WAIT_M", "0.6")))
+    parser.add_argument("--wait-l", type=float,
+                        default=float(os.getenv("HERA_WAIT_L", "1.2")))
+    parser.add_argument("--initial-wait", type=int, default=30,
+                        help="Initial pause (seconds) for manual login.")
 
     args = parser.parse_args()
     run(nominations_url=args.nominations_url,
         profiles_url=args.profiles_url,
         occupancy_url=args.occupancy_url,
+        costs_url=args.costs_url,
+        maintenance_url=args.maintenance_url,
         csv_path=args.csv,
+        yearly_nominations_url=args.yearly_nominations_url,
+        yearly_csv_path=args.yearly_csv,
         slowmo=args.slowmo,
-        start_step=args.start_step,
-        do_step4=args.do_step4,
-        confirm_n=args.confirm_n,
-        reject_n=args.reject_n,
         env=args.env,
         prompt=(not args.no_prompt),
         excel_log=(args.excel_log if args.excel_log else None),
         excel_summary=(args.excel_summary if args.excel_summary else None),
         severity_default=args.severity_default,
+        start_step=args.start_step,
         wait_s=args.wait_s,
         wait_m=args.wait_m,
-        wait_l=args.wait_l)
+        wait_l=args.wait_l,
+        initial_wait=args.initial_wait)

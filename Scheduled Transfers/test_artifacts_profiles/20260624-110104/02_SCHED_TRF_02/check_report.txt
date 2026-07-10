@@ -1,0 +1,23 @@
+=== SCHED_TRF_02 check report  week 27/2026 ===
+
+Loading sessions : 5
+Filling segments : 5
+Count match      : YES
+
+  [01] PASS  bay=Loading Bay 1, no_maintenance, max=124.8 g/s, dur=165 min, mass=1014.18 kg
+  [02] PASS  bay=Loading Bay 2, no_maintenance, max=124.8 g/s, dur=165 min, mass=1014.18 kg
+  [03] PASS  bay=Loading Bay 4, no_maintenance, max=124.8 g/s, dur=165 min, mass=1014.18 kg
+  [04] PASS  bay=Loading Bay 1, no_maintenance, max=124.8 g/s, dur=165 min, mass=1014.18 kg
+  [05] PASS  bay=Loading Bay 3, no_maintenance, max=124.8 g/s, dur=165 min, mass=1014.18 kg
+
+Alignment issues:
+  !! OCC Filling [Loading Bay 1] Tue 01:00 → Tue 03:45 has no matching profile segment (±30 min)
+  !! OCC Filling [Loading Bay 1] Tue 12:15 → Tue 15:00 has no matching profile segment (±30 min)
+  !! Profile segment [Loading Bay 1] 2026-06-30T01:30 → 2026-06-30T03:45 has no matching bay occupancy Filling
+  !! Profile segment [Loading Bay 1] 2026-06-30T12:45 → 2026-06-30T15:00 has no matching bay occupancy Filling
+  !! OCC Filling [Loading Bay 2] Tue 03:15 → Tue 06:00 has no matching profile segment (±30 min)
+  !! Profile segment [Loading Bay 2] 2026-06-30T03:45 → 2026-06-30T06:00 has no matching bay occupancy Filling
+  !! OCC Filling [Loading Bay 3] Tue 05:30 → Tue 17:15 has no matching profile segment (±30 min)
+  !! Profile segment [Loading Bay 3] 2026-06-30T15:00 → 2026-06-30T17:15 has no matching bay occupancy Filling
+  !! OCC Filling [Loading Bay 4] Tue 07:45 → Tue 10:30 has no matching profile segment (±30 min)
+  !! Profile segment [Loading Bay 4] 2026-06-30T08:15 → 2026-06-30T10:30 has no matching bay occupancy Filling

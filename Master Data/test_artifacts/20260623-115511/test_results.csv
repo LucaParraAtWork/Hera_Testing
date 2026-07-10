@@ -1,0 +1,5 @@
+id,desc,expect,result,notes
+ACS_TM_TRL_02,Trailer – invalid Global Max Flow Rate (text / negative),FAIL,FAIL,
+ACS_TM_TRL_03,Trailer – save without trailer type or offtaker company,FAIL,FAIL,
+ACS_MD_09,Transport company registry list – companies visible,PASS,PASS,
+ACS_MD_10,"Drivers, trucks, trailers list views visible",PASS,PASS,

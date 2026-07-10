@@ -1,0 +1,25 @@
+id,desc,expect,result,notes
+ACS_TM_TRK_06,Truck – promote to Qualified with date cleared → blocked,FAIL,FAIL,
+ACS_MD_05,Add driver as Pre-Qualified,PASS,PASS,
+ACS_MD_06,Promote driver Pre-Qualified → Qualified (with dates),PASS,PASS,
+ACS_TM_QUAL_03,Driver – save as Qualified on create → blocked,PASS,PASS,
+ACS_TM_QUAL_05,Driver – promote to Qualified without training date → blocked,FAIL,FAIL,
+ACS_TM_DRV_01,Driver – badge ID wrong format or length,FAIL,FAIL,
+ACS_TM_DRV_02,Driver – invalid or empty ADR card number,FAIL,FAIL,
+ACS_TM_DRV_03,Driver – empty last name or first name,FAIL,FAIL,
+ACS_TM_DRV_04,Driver – save without transport company,FAIL,FAIL,
+ACS_MD_07,Add trailer as Pre-Qualified,PASS,PASS,
+ACS_MD_08,Promote trailer Pre-Qualified → Qualified (with date),PASS,PASS,
+ACS_TM_QUAL_02,Trailer – save as Qualified on create → blocked,PASS,PASS,
+ACS_TM_TRL_01,Trailer – license plate invalid for country B,FAIL,FAIL,
+ACS_TM_TRL_02,Trailer – invalid Global Max Flow Rate (text / negative),FAIL,ERROR,"Locator.fill: Error: Cannot type text into input[type=number]
+Call log:
+  - waiting for locator(""dialog[open]"").last.locator(""input"").nth(2)
+    - locator resolved to <input type=""number"" id=""max-flow-rate"" name=""max-flow-rate"" placeholder=""e.g. 32.5"" _ngcontent-ng-c2455708966="""" formcontrolname=""maxFlowRate"" class=""ng-untouched ng-pristine ng-invalid""/>
+    - fill(""not-a-number"")
+  - attempting fill action
+    - waiting for element to be visible, enabled and editable
+"
+ACS_TM_TRL_03,Trailer – save without trailer type or offtaker company,FAIL,FAIL,
+ACS_MD_09,Transport company registry list – companies visible,PASS,PASS,
+ACS_MD_10,"Drivers, trucks, trailers list views visible",PASS,PASS,

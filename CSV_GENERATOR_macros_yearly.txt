@@ -1,0 +1,265 @@
+Option Explicit
+
+' ================== FICHIER EXPORT ==================
+' Le nom final sera: [Offtaker]_Nomination_Year[YYYY].csv
+
+' ================== HELPERS FEUILLES/NOMS ==================
+Private Function SheetEnsure(ByVal nm As String) As Worksheet
+    On Error Resume Next
+    Set SheetEnsure = ThisWorkbook.Worksheets(nm)
+    On Error GoTo 0
+    If SheetEnsure Is Nothing Then
+        Set SheetEnsure = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
+        SheetEnsure.Name = nm
+    End If
+End Function
+
+Private Sub EnsureName(ByVal nm As String, ByVal tgt As Range)
+    On Error Resume Next
+    If ThisWorkbook.Names(nm) Is Nothing Then
+        ThisWorkbook.Names.Add Name:=nm, RefersTo:=tgt
+    Else
+        ThisWorkbook.Names(nm).RefersTo = tgt
+    End If
+    On Error GoTo 0
+End Sub
+
+Private Function NameExists(ByVal nm As String) As Boolean
+    On Error Resume Next
+    NameExists = Not (ThisWorkbook.Names(nm) Is Nothing)
+    On Error GoTo 0
+End Function
+
+' Nettoyage pour nom de fichier
+Private Function SanitizeForFile(ByVal s As String) As String
+    Dim bad As Variant, i As Long
+    bad = Array("\", "/", ":", "*", "?", """", "<", ">", "|")
+    s = Trim$(s)
+    If s = "" Then s = "Offtaker"
+    For i = LBound(bad) To UBound(bad)
+        s = Replace$(s, CStr(bad(i)), "_")
+    Next i
+    SanitizeForFile = s
+End Function
+
+' ================== INTRO / LISTS SETUP ==================
+Private Sub SetupIntroIfMissing()
+    Dim ws As Worksheet
+    If Not NameExists("ConfigYear") Or Not NameExists("ConfigOfftaker") Then
+        Set ws = SheetEnsure("Intro")
+        If IsEmpty(ws.Range("A1")) Then ws.Range("A1").Value = "Year (YYYY)"
+        If IsEmpty(ws.Range("A2")) Then ws.Range("A2").Value = "Offtaker"
+        If IsEmpty(ws.Range("B2")) Then ws.Range("B2").Value = Year(Date)
+        If IsEmpty(ws.Range("B3")) Then ws.Range("B3").Value = "ExampleOfftaker"
+        If Not NameExists("ConfigYear") Then EnsureName "ConfigYear", ws.Range("B2")
+        If Not NameExists("ConfigOfftaker") Then EnsureName "ConfigOfftaker", ws.Range("B3")
+    End If
+End Sub
+
+Private Sub SetupLists()
+    Dim ws As Worksheet
+    Set ws = SheetEnsure("Lists")
+
+    ' Libellés
+    If IsEmpty(ws.Range("A1")) Then ws.Range("A1").Value = "AllowedTotalPerWeek"
+    If IsEmpty(ws.Range("A2")) Then ws.Range("A2").Value = "AllowedTotalPerMonth"
+    If IsEmpty(ws.Range("A3")) Then ws.Range("A3").Value = "NumberOfOfftakers"
+
+    ' Valeurs par défaut (modifiables ensuite)
+    If IsEmpty(ws.Range("B1")) Then ws.Range("B1").Value = 100
+    If IsEmpty(ws.Range("B2")) Then ws.Range("B2").Value = 800
+    If IsEmpty(ws.Range("B3")) Then ws.Range("B3").Value = 2
+
+    ' Noms des cellules source
+    EnsureName "AllowedTotalPerWeek", ws.Range("B1")
+    EnsureName "AllowedTotalPerMonth", ws.Range("B2")
+    EnsureName "NumberOfOfftakers", ws.Range("B3")
+
+    ' Calculs par offtaker (noms pointant sur des formules)
+    ws.Range("A4").Value = "AllowedPerWeek"
+    ws.Range("A5").Value = "AllowedPerMonth"
+    ws.Range("B4").Formula = "=INT(AllowedTotalPerWeek/MAX(1,NumberOfOfftakers))"
+    ws.Range("B5").Formula = "=INT(AllowedTotalPerMonth/MAX(1,NumberOfOfftakers))"
+    EnsureName "AllowedPerWeek", ws.Range("B4")
+    EnsureName "AllowedPerMonth", ws.Range("B5")
+
+    ws.Visible = xlSheetHidden
+End Sub
+
+' ================== ISO WEEK HELPERS ==================
+Private Function IsoMonday(ByVal yr As Long, ByVal isoWeek As Long) As Date
+    Dim jan4 As Date, mondayW1 As Date
+    jan4 = DateSerial(yr, 1, 4)
+    mondayW1 = jan4 - (Weekday(jan4, vbMonday) - 1)
+    IsoMonday = mondayW1 + (isoWeek - 1) * 7
+End Function
+
+Private Function WeeksInISOYear(ByVal yr As Long) As Long
+    ' Si le lundi de la 53ème semaine tombe le 28 décembre ou avant,
+    ' alors cette semaine appartient bien à l'année en cours.
+    If IsoMonday(yr, 53) <= DateSerial(yr, 12, 28) Then
+        WeeksInISOYear = 53
+    Else
+        WeeksInISOYear = 52
+    End If
+End Function
+
+' ================== GÉNÉRATION TEMPLATE ==================
+Public Sub BuildSimpleTypePeriodTemplate()
+    On Error GoTo fail
+    Application.ScreenUpdating = False
+
+    SetupIntroIfMissing
+    SetupLists
+
+    ' Lire année + offtaker depuis les noms
+    If Not NameExists("ConfigYear") Then MsgBox "Définis 'ConfigYear'.", vbExclamation: GoTo done
+    If Not NameExists("ConfigOfftaker") Then MsgBox "Définis 'ConfigOfftaker'.", vbExclamation: GoTo done
+
+    Dim yrVal As Variant: yrVal = [ConfigYear].Value
+    Dim offVal As String: offVal = CStr([ConfigOfftaker].Value)
+
+    If Not IsNumeric(yrVal) Or CLng(yrVal) < 1900 Then
+        MsgBox "ConfigYear doit contenir une année (YYYY).", vbExclamation
+        GoTo done
+    End If
+    Dim yr As Long: yr = CLng(yrVal)
+
+    Dim ws As Worksheet: Set ws = SheetEnsure("Nominations")
+    ws.Cells.Clear
+
+    ws.Range("A1:C1").Value = Array("Type", "Period", "Number of trailers")
+    ws.Rows(1).Font.Bold = True
+    ws.Columns("A:C").ColumnWidth = 20
+
+    ' Mois
+    Dim r As Long, i As Long
+    r = 2
+    For i = 1 To 12
+        ws.Cells(r, "A").Value = "Month"
+        ws.Cells(r, "B").Value = i
+        r = r + 1
+    Next i
+
+    ' Semaines ISO
+    Dim wMax As Long: wMax = WeeksInISOYear(yr)
+    Dim w As Long
+    For w = 1 To wMax
+        ws.Cells(r, "A").Value = "Week"
+        ws.Cells(r, "B").Value = w
+        r = r + 1
+    Next w
+
+    ' Validations (entier >=0) avec plafonds par type
+    Dim monthRange As Range, weekRange As Range
+    Set monthRange = ws.Range("C2:C13")
+    If wMax > 0 Then
+        Set weekRange = ws.Range("C14:C" & (13 + wMax))
+    Else
+        Set weekRange = ws.Range("C14:C14")
+    End If
+
+    With monthRange.Validation
+        .Delete
+        .Add Type:=xlValidateWholeNumber, AlertStyle:=xlValidAlertStop, _
+             Operator:=xlBetween, Formula1:="=0", Formula2:="=AllowedPerMonth"
+        .IgnoreBlank = False
+        .InputTitle = "Number of trailers (Month)"
+        .InputMessage = "Entier = 0, max = AllowedPerMonth (Lists)."
+    End With
+
+    With weekRange.Validation
+        .Delete
+        .Add Type:=xlValidateWholeNumber, AlertStyle:=xlValidAlertStop, _
+             Operator:=xlBetween, Formula1:="=0", Formula2:="=AllowedPerWeek"
+        .IgnoreBlank = False
+        .InputTitle = "Number of trailers (Week)"
+        .InputMessage = "Entier = 0, max = AllowedPerWeek (Lists)."
+    End With
+
+done:
+    Application.ScreenUpdating = True
+    Exit Sub
+fail:
+    Application.ScreenUpdating = True
+    MsgBox "BuildSimpleTypePeriodTemplate - erreur " & Err.Number & " : " & Err.Description, vbCritical
+End Sub
+
+' ================== CONTRÔLE + EXPORT ==================
+Public Sub ExportTypePeriodCsv()
+    On Error GoTo fail
+
+    SetupLists
+    If Not NameExists("ConfigYear") Or Not NameExists("ConfigOfftaker") Then
+        MsgBox "Définis 'ConfigYear' et 'ConfigOfftaker' dans Intro.", vbExclamation
+        Exit Sub
+    End If
+
+    Dim yr As Long: yr = CLng([ConfigYear].Value)
+    If yr < 1900 Then MsgBox "Année invalide.", vbExclamation: Exit Sub
+    Dim offName As String: offName = CStr([ConfigOfftaker].Value)
+    offName = SanitizeForFile(offName)
+
+    Dim ws As Worksheet: Set ws = SheetEnsure("Nominations")
+    If ws.Cells(1, 1).Value <> "Type" Or ws.Cells(1, 2).Value <> "Period" Or ws.Cells(1, 3).Value <> "Number of trailers" Then
+        MsgBox "Clique d'abord sur Générer pour créer la template.", vbExclamation
+        Exit Sub
+    End If
+
+    Dim wMax As Long: wMax = WeeksInISOYear(yr)
+    Dim lastRow As Long: lastRow = 1 + 12 + wMax
+
+    Dim limitM As Double, limitW As Double
+    limitM = CDbl([AllowedPerMonth].Value)
+    limitW = CDbl([AllowedPerWeek].Value)
+    If limitM <= 0 Or limitW <= 0 Then
+        MsgBox "Lists: AllowedPerMonth et AllowedPerWeek doivent être > 0.", vbExclamation
+        Exit Sub
+    End If
+
+    ' Contrôles
+    Dim r As Long, v
+    For r = 2 To 13 ' Mois
+        v = ws.Cells(r, "C").Value
+        If Len(Trim$(CStr(v))) = 0 Then ws.Cells(r, "C").Select: MsgBox "Tous les MOIS doivent être remplis.", vbExclamation: Exit Sub
+        If Not IsNumeric(v) Or v < 0 Or v <> Fix(v) Or v > limitM Then
+            ws.Cells(r, "C").Select: MsgBox "MOIS : entier = 0 et = AllowedPerMonth.", vbCritical: Exit Sub
+        End If
+    Next r
+    For r = 14 To lastRow ' Semaines
+        v = ws.Cells(r, "C").Value
+        If Len(Trim$(CStr(v))) = 0 Then ws.Cells(r, "C").Select: MsgBox "Toutes les SEMAINES doivent être remplies.", vbExclamation: Exit Sub
+        If Not IsNumeric(v) Or v < 0 Or v <> Fix(v) Or v > limitW Then
+            ws.Cells(r, "C").Select: MsgBox "SEMAINE : entier = 0 et = AllowedPerWeek.", vbCritical: Exit Sub
+        End If
+    Next r
+
+    ' Sélection du dossier & export avec nom demandé
+    Dim fldr As FileDialog, outPath As String, fn As String
+    Set fldr = Application.FileDialog(msoFileDialogFolderPicker)
+    With fldr
+        .Title = "Select export folder"
+        If .Show <> -1 Then Exit Sub
+        outPath = .SelectedItems(1)
+    End With
+
+    fn = outPath & Application.PathSeparator & offName & "_Nomination_Year" & CStr(yr) & ".csv"
+
+    Dim f As Integer: f = FreeFile(0)
+    Open fn For Output As #f
+    Print #f, "Type,Period,Number of trailers"
+    For r = 2 To lastRow
+        Print #f, CStr(ws.Cells(r, "A").Value) & "," & _
+                  CStr(ws.Cells(r, "B").Value) & "," & _
+                  CStr(ws.Cells(r, "C").Value)
+    Next r
+    Close #f
+
+    MsgBox "Export terminé : " & fn, vbInformation
+    Exit Sub
+
+fail:
+    MsgBox "ExportTypePeriodCsv - erreur " & Err.Number & " : " & Err.Description, vbCritical
+End Sub
+
+

@@ -1,0 +1,7 @@
+=== CHK_01  Loading sessions vs. Filling segments ===
+
+Sessions (DropOff→Pickup pairs): 1
+  2026-06-30T03:00 → 2026-06-30T06:00  offtaker=23441204
+
+Filling segments (graph blocks):  1
+  bay=Loading Bay 4, 2026-06-30T03:45 → 2026-06-30T06:00, max=124.8 g/s, dur=150 min, mass=1014.18 kg

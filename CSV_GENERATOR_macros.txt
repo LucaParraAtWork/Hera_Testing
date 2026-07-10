@@ -1,0 +1,761 @@
+Option Explicit
+
+' ===========================================================
+' TYPES & CONSTANTS
+' ===========================================================
+
+' Represents a slot in memory for the optimization algorithm
+Private Type SlotInMemory
+    Index As Long               ' Array Index
+    slotID As Long              ' The official ID (1, 2, 3...)
+    startTime As Date
+    endTime As Date
+    IsDeleted As Boolean        ' Flag: True if removed by optimization
+    DropOffLatest As Date       ' StartTime (assuming StartTime = DropOff Latest)
+    IsLocked As Boolean         ' Verrouillage pour protéger les cycles en cours
+End Type
+
+' Power Data structure for fast lookup
+Private Type PowerPoint
+    TimePoint As Date
+    PowerValue As Double
+End Type
+
+' --- CONFIGURATION ---
+Private Const QH_MIN As Long = 15
+Private Const SLOT_QH As Long = 6           ' 90 min
+Private Const BREAK_QH As Long = 3          ' 45 min
+Private Const INIT_EMPTY_QH As Long = 11    ' Start offset
+
+' --- OPTIMIZATION PARAMETERS ---
+Private Const P_MAX As Double = 25000       ' kW
+
+' ===========================================================
+' MAIN MACROS (BUTTONS)
+' ===========================================================
+
+' -----------------------------------------------------------
+' BUTTON 1: GENERATE TEMPLATE (SLOTS + POWER DATA)
+' -----------------------------------------------------------
+Public Sub BuildNominations()
+    Dim wsIntro As Worksheet, wsNom As Worksheet
+    Dim offtaker As String
+    Dim yr As Long, wk As Long
+    Dim lastRow As Long
+    Dim refYr As Long, refWk As Long, startParity As Long
+    Dim masterOffset As Long
+
+    ' 1. Setup Sheets
+    Set wsIntro = SheetEnsure("Intro")
+    Set wsNom = SheetEnsureNominationSheet()
+    SheetEnsureTrailerTypesName
+
+    ' 2. Read Intro Inputs
+    offtaker = CStr(wsIntro.Range("B1").Value)
+    yr = CLng(wsIntro.Range("B2").Value)
+    wk = CLng(wsIntro.Range("B3").Value)
+    refYr = IIf(IsNumeric(wsIntro.Range("B4").Value), CLng(wsIntro.Range("B4").Value), 2025)
+    refWk = IIf(IsNumeric(wsIntro.Range("B5").Value), CLng(wsIntro.Range("B5").Value), 1)
+    startParity = IIf(IsNumeric(wsIntro.Range("B6").Value), CLng(wsIntro.Range("B6").Value), 0)
+
+    If yr < 1900 Or wk < 1 Or wk > 53 Then
+        MsgBox "Intro: B1 Offtaker, B2 Year, B3 ISO week required.", vbExclamation
+        Exit Sub
+    End If
+
+    ' 3. Calculate Master Slot Offset (Total slots before this week)
+    masterOffset = GetMasterSlotOffset(yr, wk, refYr, refWk)
+
+    ' 4. Generate Slots (Standard Pmax Generation)
+    On Error Resume Next: wsNom.Unprotect Password:="nomination": On Error GoTo 0
+    wsNom.Cells.Clear
+    WriteNominationHeader wsNom
+    
+    GenerateSlotsInSheet wsNom, 2, yr, wk
+    
+    lastRow = wsNom.Cells(wsNom.Rows.count, "A").End(xlUp).Row
+    If lastRow < 2 Then
+        MsgBox "No slots generated.", vbExclamation
+        Exit Sub
+    End If
+
+    ' 5. Generate Power Data Sheet (Default 25000)
+    GeneratePowerDataSheet yr, wk
+
+    ' 6. Apply Formatting (Standard Green/Grey) using Master Logic
+    ApplyTrailerDropdownsPolished wsNom, 2, lastRow, offtaker, masterOffset, startParity
+    
+    MsgBox "Step 1 Complete: Week generated." & vbCrLf & _
+           "Master Slot Start ID: " & (masterOffset + 1), vbInformation
+End Sub
+
+' -----------------------------------------------------------
+' BUTTON 2: APPLY POWER CONSTRAINTS (OPTIMIZATION)
+' -----------------------------------------------------------
+Public Sub ApplyPowerConstraints()
+    Dim wsNom As Worksheet, wsPower As Worksheet, wsIntro As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    Dim slots() As SlotInMemory
+    Dim powerData() As PowerPoint
+    Dim r As Long
+    Dim constrainedCount As Long
+    
+    ' Variables for Fairness Logic
+    Dim yr As Long, wk As Long
+    Dim refYr As Long, refWk As Long
+    Dim startParity As Long
+    Dim masterOffset As Long
+    Dim cellVal As Variant
+    
+    Set wsNom = SheetEnsureNominationSheet()
+    Set wsPower = SheetEnsure("PowerData")
+    Set wsIntro = SheetEnsure("Intro")
+    
+    ' 1. Load Slots from Sheet into Memory
+    lastRow = wsNom.Cells(wsNom.Rows.count, "A").End(xlUp).Row
+    If lastRow < 2 Then
+        MsgBox "No slots found in Nomination sheet. Generate first.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Get Date Context
+    yr = CLng(wsIntro.Range("B2").Value)
+    wk = CLng(wsIntro.Range("B3").Value)
+    refYr = IIf(IsNumeric(wsIntro.Range("B4").Value), CLng(wsIntro.Range("B4").Value), 2025)
+    refWk = IIf(IsNumeric(wsIntro.Range("B5").Value), CLng(wsIntro.Range("B5").Value), 1)
+    startParity = IIf(IsNumeric(wsIntro.Range("B6").Value), CLng(wsIntro.Range("B6").Value), 0)
+    
+    ' Calculate Master Slot Offset
+    masterOffset = GetMasterSlotOffset(yr, wk, refYr, refWk)
+    
+    ReDim slots(1 To lastRow - 1)
+    For i = 2 To lastRow
+        With slots(i - 1)
+            .Index = i - 1
+            
+            ' SAFE PARSING: Prevent Type Mismatch if cell says "Maint."
+            cellVal = wsNom.Cells(i, 1).Value
+            If IsNumeric(cellVal) And Not IsEmpty(cellVal) Then
+                .slotID = CLng(cellVal)
+            Else
+                .slotID = 0 ' It was marked as "Maint.", we set a placeholder ID
+            End If
+            
+            .startTime = CDate(wsNom.Cells(i, 2).Value)
+            .endTime = CDate(wsNom.Cells(i, 3).Value)
+            .DropOffLatest = .startTime
+            .IsDeleted = False
+        End With
+    Next i
+    
+    ' 2. Load Power Data into Memory
+    LoadPowerData wsPower, powerData
+    If UBound(powerData) = 0 Then
+        MsgBox "PowerData sheet is empty or invalid.", vbCritical
+        Exit Sub
+    End If
+    
+    ' 3. Run The Optimization Algorithm (Physics & Parity Sieve)
+    RunEnergyOptimization slots, powerData, masterOffset
+    
+    ' 3.5 WRITE NEW IDs TO SHEET SO FORMATTING DETECTS THEM
+    On Error Resume Next
+    wsNom.Unprotect Password:="nomination"
+    On Error GoTo 0
+    
+    For i = 1 To UBound(slots)
+        r = i + 1
+        If slots(i).IsDeleted Then
+            wsNom.Cells(r, 1).Value = "Maint." ' Mark deleted slots
+        Else
+            wsNom.Cells(r, 1).Value = slots(i).slotID ' Apply re-sequenced continuous IDs
+        End If
+    Next i
+    
+    ' 4. Apply Formatting Logic
+    Application.ScreenUpdating = False
+    
+    ' A. Reset/Apply Formatting based on Master Offset (Uses newly written IDs)
+    ' (Note: This function will re-protect the sheet at the end of its execution)
+    ApplyTrailerDropdownsPolished wsNom, 2, lastRow, _
+            CStr(wsIntro.Range("B1").Value), _
+            masterOffset, startParity
+
+    ' B. Overwrite Formatting for POWER CONSTRAINED slots (Red)
+    ' ---> FIX: We must Unprotect the sheet again before editing interior color!
+    On Error Resume Next
+    wsNom.Unprotect Password:="nomination"
+    On Error GoTo 0
+    
+    constrainedCount = 0
+    
+    For i = 1 To UBound(slots)
+        If slots(i).IsDeleted Then
+            r = i + 1 ' Row index
+            With wsNom.Range("A" & r & ":E" & r)
+                .Interior.Color = RGB(255, 200, 200) ' Light Red
+                .Font.Color = RGB(150, 0, 0)
+                .Locked = True
+            End With
+            With wsNom.Range("D" & r & ":E" & r)
+                .Validation.Delete
+                .ClearContents
+            End With
+            constrainedCount = constrainedCount + 1
+        End If
+    Next i
+    
+    ' Update Legend
+    On Error Resume Next
+    wsNom.Range("A1").Comment.Delete
+    wsNom.Range("A1").CommentThreaded.Delete
+    wsNom.Range("A1").AddComment "Legend: Green=Editable, Grey=Parity, Red=Power"
+    wsNom.Range("A1").Comment.Shape.TextFrame.AutoSize = True
+    On Error GoTo 0
+    
+    wsNom.Protect Password:="nomination", AllowSorting:=True, AllowFiltering:=True
+    Application.ScreenUpdating = True
+    
+    MsgBox "Constraints Applied." & vbCrLf & _
+           "- Power Restricted (Red): " & constrainedCount, vbInformation
+End Sub
+
+' -----------------------------------------------------------
+' BUTTON 3: EXPORT (EXISTING)
+' -----------------------------------------------------------
+Public Sub ExportWeeklyNomination()
+    On Error GoTo fail
+    Dim wsIntro As Worksheet, offtaker As String
+    Dim yr As Long, w1 As Long, w2 As Long
+    Dim fldr As FileDialog, outPath As String
+    Dim wStartCell As Variant, wEndCell As Variant, baseWeek As Variant
+
+    Set wsIntro = SheetEnsure("Intro")
+    offtaker = CStr(wsIntro.Range("B1").Value)
+    yr = CLng(wsIntro.Range("B2").Value)
+    baseWeek = wsIntro.Range("B3").Value
+    wStartCell = wsIntro.Range("B7").Value
+    wEndCell = wsIntro.Range("B8").Value
+
+    w1 = IIf(IsNumeric(wStartCell) And CLng(wStartCell) >= 1, CLng(wStartCell), CLng(baseWeek))
+    w2 = IIf(IsNumeric(wEndCell) And CLng(wEndCell) >= w1, CLng(wEndCell), w1)
+
+    If yr < 1900 Then
+        MsgBox "Intro: B2 Year (YYYY) requis.", vbExclamation
+        Exit Sub
+    End If
+
+    Set fldr = Application.FileDialog(msoFileDialogFolderPicker)
+    With fldr
+        .Title = "Select export folder"
+        If .Show <> -1 Then Exit Sub
+        outPath = .SelectedItems(1)
+    End With
+
+    Call ExportNominationFromSheet(outPath)
+    MsgBox "Export completed.", vbInformation
+    Exit Sub
+fail:
+    MsgBox "Error: " & Err.Description, vbCritical
+End Sub
+
+' ===========================================================
+' CORE ALGORITHM: HYBRID PHYSICS + PARITY SIEVE
+' ===========================================================
+Private Sub RunEnergyOptimization(ByRef slots() As SlotInMemory, ByRef pData() As PowerPoint, ByVal masterOffset As Long)
+    Dim i As Long
+    Dim newSlotID As Long
+    Dim dropNextSlot As Boolean
+    
+    Dim capacity As Double
+    Dim currentTime As Date
+    Dim cutoffTime As Date
+    Dim p As Double
+    Dim rate As Double
+    Dim condition As String
+    
+    newSlotID = 1
+    dropNextSlot = False
+    
+    For i = 1 To UBound(slots)
+        slots(i).IsLocked = False ' Legacy reset
+        
+        ' 1. Physics Engine Initialization
+        capacity = 0#
+        currentTime = slots(i).startTime
+        cutoffTime = VBA.DateAdd("d", 2, slots(i).startTime)
+        condition = "NORMAL"
+        
+        ' 2. Integrate power minute-by-minute
+        Do While capacity < 1# And currentTime < cutoffTime
+            p = GetPowerAt(currentTime, pData)
+            
+            If p <= 0 Then
+                condition = "ZERO"
+            ElseIf p <= 12500 And condition <> "ZERO" Then
+                condition = "RESTRICTED"
+            End If
+            
+            rate = GetFillRate(p)
+            capacity = capacity + rate
+            
+            currentTime = VBA.DateAdd("n", 1, currentTime)
+        Loop
+        
+        ' 3. Strict Parity Sieve: Apply business rules based on the physics condition
+        If condition = "ZERO" Then
+            slots(i).IsDeleted = True
+            dropNextSlot = False
+        ElseIf dropNextSlot Then
+            slots(i).IsDeleted = True
+            dropNextSlot = False
+        ElseIf condition = "RESTRICTED" Then
+            slots(i).IsDeleted = False
+            dropNextSlot = True
+        Else
+            slots(i).IsDeleted = False
+            dropNextSlot = False
+        End If
+        
+        ' 4. Re-sequence IDs for continuous Master Parity
+        If Not slots(i).IsDeleted Then
+            slots(i).slotID = newSlotID
+            newSlotID = newSlotID + 1
+        End If
+    Next i
+End Sub
+
+' Fast binary search to find the power available at a specific minute
+Private Function GetPowerAt(ByVal dt As Date, ByRef pData() As PowerPoint) As Double
+    Dim low As Long, high As Long, mid As Long
+    Dim bestIdx As Long
+    
+    ' Safeguards
+    If UBound(pData) = 0 Then
+        GetPowerAt = P_MAX
+        Exit Function
+    End If
+    If dt < pData(1).TimePoint Then
+        GetPowerAt = P_MAX
+        Exit Function
+    End If
+    
+    ' Binary Search to find nearest timestamp <= dt
+    low = 1
+    high = UBound(pData)
+    bestIdx = 1
+    
+    Do While low <= high
+        mid = (low + high) \ 2
+        If pData(mid).TimePoint <= dt Then
+            bestIdx = mid
+            low = mid + 1
+        Else
+            high = mid - 1
+        End If
+    Loop
+    
+    GetPowerAt = pData(bestIdx).PowerValue
+End Function
+
+' Converts power into a percentage of a trailer filled per minute
+Private Function GetFillRate(ByVal power As Double) As Double
+    Dim rate12 As Double
+    Dim rate25 As Double
+    
+    rate12 = 1# / 286#
+    rate25 = 1# / 165#
+    
+    If power >= 25000 Then
+        GetFillRate = rate25
+    ElseIf power <= 0 Then
+        GetFillRate = 0#
+    ElseIf power <= 12500 Then
+        GetFillRate = (power / 12500#) * rate12
+    Else
+        ' Interpolate between 12.5MW and 25MW
+        GetFillRate = rate12 + ((power - 12500#) / 12500#) * (rate25 - rate12)
+    End If
+End Function
+
+' ===========================================================
+' MASTER SLOT LOGIC (CONTINUOUS COUNTING)
+' ===========================================================
+
+Private Function GetMasterSlotOffset(ByVal yr As Long, ByVal wk As Long, ByVal refYr As Long, ByVal refWk As Long) As Long
+    ' Calculates total slots generated from Reference Week up to (but not including) Current Week
+    Dim t As Date, targetT As Date
+    Dim offset As Long
+    Dim loopYr As Long, loopWk As Long
+    
+    ' Start at Reference
+    t = IsoMonday(refYr, refWk)
+    targetT = IsoMonday(yr, wk)
+    offset = 0
+    
+    ' Safety Check
+    If targetT <= t Then
+        GetMasterSlotOffset = 0
+        Exit Function
+    End If
+    
+    ' Iterate weeks
+    Do While t < targetT
+        ' Determine ISO year/week for current t to handle DST lookups correctly
+        loopYr = Year(t + 3) ' ISO Year Approx
+        
+        offset = offset + CountSlotsInWeekFromDate(t, loopYr)
+        
+        ' Move to next week
+        t = t + 7
+    Loop
+    
+    GetMasterSlotOffset = offset
+End Function
+
+Private Function CountSlotsInWeekFromDate(ByVal weekStart As Date, ByVal yr As Long) As Long
+    Dim weekEnd As Date
+    Dim springForward As Date, fallBack As Date
+    Dim t As Date, slotEnd As Date
+    Dim count As Long
+    
+    weekEnd = weekStart + 7
+    springForward = EuropeDST_SpringForward(yr)
+    fallBack = EuropeDST_FallBack(yr)
+    
+    ' Match Generation Logic: Start at Offset
+    t = VBA.DateAdd("n", INIT_EMPTY_QH * QH_MIN, weekStart)
+    count = 0
+    
+    Do While t < weekEnd
+        ' Calculate End of Slot (matches GenerateSlotsInSheet)
+        slotEnd = AddMinutesLocal(t, SLOT_QH * QH_MIN, springForward, fallBack)
+        
+        ' Increment Count
+        count = count + 1
+        
+        ' Calculate Next Start (matches GenerateSlotsInSheet)
+        t = AddMinutesLocal(slotEnd, BREAK_QH * QH_MIN, springForward, fallBack)
+    Loop
+    
+    CountSlotsInWeekFromDate = count
+End Function
+
+' ===========================================================
+' FORMATTING & PARITY
+' ===========================================================
+
+Private Sub ApplyTrailerDropdownsPolished(ByVal ws As Worksheet, ByVal firstRow As Long, ByVal lastRow As Long, _
+                                          ByVal offtaker As String, ByVal masterOffset As Long, _
+                                          ByVal startParity As Long)
+
+    Dim r As Long, slotID As Variant
+    Dim masterID As Long
+    Dim isAuthorized As Boolean
+    Dim actualOwnerCode As Integer ' 1=A, 2=B
+
+    Application.ScreenUpdating = False
+
+    ' Determine Offtaker Parity Preference based on Name
+    Dim targetOwnerCode As Integer
+    Select Case UCase$(VBA.Trim$(offtaker))
+        Case "VIRYA":  targetOwnerCode = 1
+        Case "MESSER": targetOwnerCode = 2
+        Case Else:     targetOwnerCode = 1
+    End Select
+    
+    ' Swap if StartParity is set
+    If startParity <> 0 Then
+        targetOwnerCode = IIf(targetOwnerCode = 1, 2, 1)
+    End If
+
+    On Error Resume Next
+    ws.Unprotect Password:="nomination"
+    On Error GoTo 0
+
+    ' Reset Range
+    With ws.Range("A" & firstRow & ":E" & lastRow)
+        .Locked = False
+        .Interior.Pattern = xlNone
+        .Font.Color = RGB(0, 0, 0)
+    End With
+    ws.Range("D" & firstRow & ":E" & lastRow).Validation.Delete
+
+    For r = firstRow To lastRow
+        slotID = ws.Cells(r, "A").Value
+        
+        If IsNumeric(slotID) Then
+            masterID = CLng(slotID) + masterOffset
+            
+            ' Determine Actual Owner (Standard Logic via MasterID)
+            actualOwnerCode = IIf(masterID Mod 2 <> 0, 1, 2)
+            
+            ' Compare with Target Offtaker
+            If (actualOwnerCode = targetOwnerCode) Then
+                isAuthorized = True
+            Else
+                isAuthorized = False
+            End If
+            
+            ' Apply Formatting
+            If isAuthorized Or Len(VBA.Trim$(offtaker)) = 0 Then
+                ' Green / Editable
+                With ws.Range("D" & r & ":E" & r).Validation
+                    .Delete
+                    .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, _
+                         Operator:=xlBetween, Formula1:="=TrailerTypes"
+                    .InCellDropdown = True
+                End With
+                ws.Range("A" & r & ":E" & r).Interior.Color = RGB(210, 255, 210)
+            Else
+                ' Grey / Unavailable
+                ws.Range("D" & r & ":E" & r).ClearContents
+                With ws.Range("A" & r & ":E" & r)
+                    .Interior.Color = RGB(220, 220, 220)
+                    .Font.Color = RGB(120, 120, 120)
+                    .Locked = True
+                End With
+            End If
+        End If
+    Next r
+    
+    ws.Protect Password:="nomination", AllowSorting:=True, AllowFiltering:=True
+    Application.ScreenUpdating = True
+End Sub
+
+' ===========================================================
+' STANDARD HELPERS
+' ===========================================================
+
+Private Function SheetEnsure(ByVal name As String) As Worksheet
+    On Error Resume Next
+    Set SheetEnsure = ThisWorkbook.Worksheets(name)
+    On Error GoTo 0
+    If SheetEnsure Is Nothing Then
+        Set SheetEnsure = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.count))
+        SheetEnsure.name = name
+    End If
+End Function
+
+Private Function SheetEnsureNominationSheet() As Worksheet
+    On Error Resume Next
+    Set SheetEnsureNominationSheet = ThisWorkbook.Worksheets("Nominations")
+    If SheetEnsureNominationSheet Is Nothing Then
+        Set SheetEnsureNominationSheet = ThisWorkbook.Worksheets("Nomination")
+    End If
+    On Error GoTo 0
+    If SheetEnsureNominationSheet Is Nothing Then
+        Set SheetEnsureNominationSheet = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.count))
+        SheetEnsureNominationSheet.name = "Nominations"
+    End If
+End Function
+
+Private Sub SheetEnsureTrailerTypesName()
+    Dim ws As Worksheet, nm As name, tbl As ListObject
+    Set ws = SheetEnsure("Lists")
+    If ws.ListObjects.count = 0 Then
+        MsgBox "Sheet 'Lists' needs table 'tblTrailerTypes'.", vbExclamation
+        Exit Sub
+    End If
+    On Error Resume Next
+    Set tbl = ws.ListObjects("tblTrailerTypes")
+    On Error GoTo 0
+    If tbl Is Nothing Then Set tbl = ws.ListObjects(1)
+
+    On Error Resume Next
+    Set nm = ThisWorkbook.Names("TrailerTypes")
+    On Error GoTo 0
+    If nm Is Nothing Then
+        ThisWorkbook.Names.Add name:="TrailerTypes", _
+            RefersTo:="=" & ws.name & "!" & tbl.name & "[" & tbl.ListColumns(1).name & "]"
+    Else
+        nm.RefersTo = "=" & ws.name & "!" & tbl.name & "[" & tbl.ListColumns(1).name & "]"
+    End If
+End Sub
+
+Private Sub GeneratePowerDataSheet(ByVal yr As Long, ByVal isoWeek As Long)
+    Dim ws As Worksheet
+    Dim weekStart As Date, weekEnd As Date
+    Dim t As Date
+    Dim r As Long
+    
+    Set ws = SheetEnsure("PowerData")
+    ws.Cells.Clear
+    ws.Range("A1:B1").Value = Array("Time", "Power (kW)")
+    ws.Range("A1:B1").Font.Bold = True
+    
+    weekStart = IsoMonday(yr, isoWeek)
+    weekEnd = weekStart + 9
+    
+    r = 2
+    t = weekStart
+    
+    Application.ScreenUpdating = False
+    Do While t <= weekEnd
+        ws.Cells(r, 1).Value = t
+        ws.Cells(r, 2).Value = 25000 ' Default Pmax
+        ws.Cells(r, 1).NumberFormat = "dd/mm/yyyy hh:mm"
+        t = VBA.DateAdd("n", 15, t)
+        r = r + 1
+    Loop
+    ws.Columns("A:B").AutoFit
+    Application.ScreenUpdating = True
+End Sub
+
+Private Sub LoadPowerData(ByVal ws As Worksheet, ByRef arr() As PowerPoint)
+    Dim data As Variant
+    Dim i As Long
+    Dim lastRow As Long
+    lastRow = ws.Cells(ws.Rows.count, "A").End(xlUp).Row
+    If lastRow < 2 Then Exit Sub
+    data = ws.Range("A2:B" & lastRow).Value
+    ReDim arr(1 To UBound(data, 1))
+    For i = 1 To UBound(data, 1)
+        arr(i).TimePoint = CDate(data(i, 1))
+        arr(i).PowerValue = CDbl(data(i, 2))
+    Next i
+End Sub
+
+Private Function IsoMonday(ByVal yr As Long, ByVal isoWeek As Long) As Date
+    Dim jan4 As Date, mondayW1 As Date
+    jan4 = VBA.DateSerial(yr, 1, 4)
+    mondayW1 = jan4 - (Weekday(jan4, vbMonday) - 1)
+    IsoMonday = mondayW1 + (isoWeek - 1) * 7
+End Function
+
+Private Function EuropeDST_SpringForward(ByVal yr As Long) As Date
+    Dim lastMar As Date, lastSunday As Date
+    lastMar = VBA.DateSerial(yr, 4, 0)
+    lastSunday = lastMar - (Weekday(lastMar, vbSunday) - 1)
+    EuropeDST_SpringForward = VBA.DateSerial(yr, Month(lastSunday), Day(lastSunday)) + TimeSerial(2, 0, 0)
+End Function
+
+Private Function EuropeDST_FallBack(ByVal yr As Long) As Date
+    Dim lastOct As Date, lastSunday As Date
+    lastOct = VBA.DateSerial(yr, 11, 0)
+    lastSunday = lastOct - (Weekday(lastOct, vbSunday) - 1)
+    EuropeDST_FallBack = VBA.DateSerial(yr, Month(lastSunday), Day(lastSunday)) + TimeSerial(3, 0, 0)
+End Function
+
+Private Function AddMinutesLocal(ByVal d As Date, ByVal minutesToAdd As Long, _
+                                 ByVal springForward As Date, ByVal fallBack As Date) As Date
+    Dim t As Date
+    t = VBA.DateAdd("n", minutesToAdd, d)
+    If d < springForward And t >= springForward Then
+        t = t + TimeSerial(1, 0, 0)
+    End If
+    ' Note: Fallback logic retained as implicitly handled by linear time unless specifically requested
+    AddMinutesLocal = t
+End Function
+
+Private Sub GenerateSlotsInSheet(ByVal ws As Worksheet, ByVal firstRow As Long, ByVal yr As Long, ByVal isoWeek As Long)
+    Dim weekStart As Date, weekEnd As Date
+    Dim springForward As Date, fallBack As Date
+    Dim r As Long, slotID As Long
+    Dim t As Date, slotStart As Date, slotEnd As Date
+
+    weekStart = IsoMonday(yr, isoWeek)
+    weekEnd = weekStart + 7
+    springForward = EuropeDST_SpringForward(yr)
+    fallBack = EuropeDST_FallBack(yr)
+
+    r = firstRow
+    slotID = 1
+    
+    t = VBA.DateAdd("n", INIT_EMPTY_QH * QH_MIN, weekStart)
+
+    Do While t < weekEnd
+        slotStart = t
+        slotEnd = AddMinutesLocal(slotStart, SLOT_QH * QH_MIN, springForward, fallBack)
+
+        ws.Cells(r, 1).Value = slotID
+        ws.Cells(r, 2).Value = slotStart
+        ws.Cells(r, 3).Value = slotEnd
+        ws.Cells(r, 2).NumberFormat = "dd\/mm\/yyyy hh:mm"
+        ws.Cells(r, 3).NumberFormat = "dd\/mm\/yyyy hh:mm"
+        ws.Cells(r, 4).Value = vbNullString
+        ws.Cells(r, 5).Value = vbNullString
+
+        r = r + 1
+        slotID = slotID + 1
+        t = AddMinutesLocal(slotEnd, BREAK_QH * QH_MIN, springForward, fallBack)
+    Loop
+End Sub
+
+Private Sub WriteNominationHeader(ByVal ws As Worksheet)
+    ws.Range("A1:E1").Value = Array("PickUpSlotID", "Start Time", "End Time", "Drop-Off Trailer", "Pick-Up Trailer")
+    ws.Range("A1:E1").Font.Bold = True
+    ws.Columns("A").ColumnWidth = 14
+    ws.Columns("B:C").ColumnWidth = 22
+    ws.Columns("D:E").ColumnWidth = 24
+End Sub
+
+Private Sub ExportNominationFromSheet(ByVal outPath As String)
+    Dim ws As Worksheet, fn As String
+    Dim lastRow As Long, r As Long, f As Integer, line As String
+    Dim wsIntro As Worksheet, off As String, wk As Long
+    
+    Set ws = SheetEnsureNominationSheet()
+    lastRow = ws.Cells(ws.Rows.count, "A").End(xlUp).Row
+    If lastRow < 2 Then
+        MsgBox "Nominations sheet is empty.", vbExclamation
+        Exit Sub
+    End If
+
+    Set wsIntro = SheetEnsure("Intro")
+    off = SanitizeForFile(CStr(wsIntro.Range("B1").Value))
+    wk = CLng(IIf(IsNumeric(wsIntro.Range("B3").Value), wsIntro.Range("B3").Value, 0))
+    fn = outPath & Application.PathSeparator & off & "_Nomination_Week" & VBA.Format$(wk, "00") & ".csv"
+
+    f = FreeFile
+    Open fn For Output As #f
+    Print #f, "PickUpSlotID,Start Time,End Time,Drop-Off Trailer,Pick-Up Trailer"
+    
+    For r = 2 To lastRow
+        line = SafeStr(ws.Cells(r, 1).Value) & "," & _
+               SafeDateStr(ws.Cells(r, 2).Value) & "," & _
+               SafeDateStr(ws.Cells(r, 3).Value) & "," & _
+               SafeStr(ws.Cells(r, 4).Value) & "," & _
+               SafeStr(ws.Cells(r, 5).Value)
+        line = VBA.Replace(line, ",ype", ",type")
+        line = VBA.Replace(line, ",Ype", ",Type")
+        Print #f, line
+    Next r
+    Close #f
+    MsgBox "File exported: " & fn, vbInformation
+End Sub
+
+Private Function SafeStr(ByVal v As Variant) As String
+    On Error Resume Next
+    If IsError(v) Then
+        SafeStr = ""
+    Else
+        SafeStr = VBA.Trim$(CStr(v))
+    End If
+    On Error GoTo 0
+End Function
+
+Private Function SafeDateStr(ByVal v As Variant) As String
+    On Error Resume Next
+    If IsError(v) Then
+        SafeDateStr = ""
+    ElseIf IsDate(v) Then
+        SafeDateStr = VBA.Format$(CDate(v), "dd\/mm\/yyyy hh:nn")
+    Else
+        SafeDateStr = VBA.Trim$(CStr(v))
+    End If
+    On Error GoTo 0
+End Function
+
+Private Function SanitizeForFile(ByVal s As String) As String
+    Dim bad As Variant, i As Long
+    bad = Array("\", "/", ":", "*", "?", """", "<", ">", "|")
+    s = VBA.Trim$(s)
+    If s = "" Then s = "All"
+    For i = LBound(bad) To UBound(bad)
+        s = VBA.Replace(s, CStr(bad(i)), "_")
+    Next i
+    SanitizeForFile = s
+End Function
+

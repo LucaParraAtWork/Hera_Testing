@@ -1,0 +1,18 @@
+Power consumption vs. Nominal Capacity — per maintenance window (MW)
+========================================================================
+
+  HPC maintenance  → cap 12.5 MW
+  Window (local) : 2026-07-07 00:00 → 23:59
+  Timestamps     : 96 nominal  /  96 power
+  Nominal caps   : 12.5 MW × 96
+  Max power      : 0.0000 MW   (mean: 0.0000 MW)
+  Expected cap   : 12.5 MW
+  Violations     : 0  ✓
+
+  Stack 1 maint.   → cap   0 MW
+  Window (local) : 2026-07-09 00:00 → 23:59
+  Timestamps     : 96 nominal  /  96 power
+  Nominal caps   : 0.0 MW × 96
+  Max power      : 0.0000 MW   (mean: 0.0000 MW)
+  Expected cap   : 0.0 MW
+  Violations     : 0  ✓

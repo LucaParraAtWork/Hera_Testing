@@ -1,0 +1,11 @@
+=== PRF_CAP check report  week 27/2026 ===
+
+Loading sessions : 5
+Filling segments : 5
+Count match      : YES
+
+  [01] PASS  bay=Loading Bay 4, no_maintenance, max=124.8 g/s, dur=150 min, mass=1014.18 kg
+  [02] PASS  bay=Loading Bay 2, no_maintenance, max=124.8 g/s, dur=150 min, mass=1014.18 kg
+  [03] PASS  bay=Loading Bay 3, no_maintenance, max=124.8 g/s, dur=150 min, mass=1014.18 kg
+  [04] PASS  bay=Loading Bay 4, no_maintenance, max=124.8 g/s, dur=150 min, mass=1014.18 kg
+  [05] PASS  bay=Loading Bay 1, no_maintenance, max=124.8 g/s, dur=150 min, mass=1014.18 kg

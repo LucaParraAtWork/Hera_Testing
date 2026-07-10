@@ -1,0 +1,237 @@
+{
+    "Date": "2026-06-27",
+    "Price_Elec_Eur_per_MWh": 100.0,
+    "Price_Gas_Eur_per_MWh": 30.0,
+    "Trailer_Allocations_Log": [],
+    "Plant_Summary": {
+        "Total_H2_Allocated_kg": 1631.23,
+        "Mass_Flows_kg": {
+            "Truck_Filling": 0.0,
+            "Gas_Injection": 1631.23
+        },
+        "Energy_Flows_MWh": {
+            "Grid_Electricity": 92.36,
+            "Truck_Load": 0.0,
+            "Gas_Injection_Electricity": 92.36,
+            "Gas_Injection": 64.29
+        },
+        "Operational_Costs_Eur": {
+            "Grid_Electricity": 9235.79
+        },
+        "Revenues_Eur": {
+            "Gas_Market_Sales": 1928.61,
+            "aFRR_Capacity": 0.0
+        },
+        "Financial_Summary": {
+            "Net_Position_Eur": 7307.18,
+            "Net_Unit_Cost_Eur_per_MWh": 0.0,
+            "Net_Unit_Cost_Eur_per_kg": 4.48
+        }
+    },
+    "Loading_Bays": {
+        "Loading 1": {
+            "Total_H2_Allocated_kg": 0.0,
+            "Mass_Flows_kg": {
+                "Truck_Filling": 0.0,
+                "Gas_Injection": 0.0
+            },
+            "Energy_Flows_MWh": {
+                "Grid_Electricity": 0.0,
+                "Truck_Load": 0.0,
+                "Gas_Injection_Electricity": 0.0,
+                "Gas_Injection": 0.0
+            },
+            "Operational_Costs_Eur": {
+                "Grid_Electricity": 0.0
+            },
+            "Revenues_Eur": {
+                "Gas_Market_Sales": 0.0,
+                "aFRR_Capacity": 0.0
+            },
+            "Financial_Summary": {
+                "Net_Position_Eur": 0.0,
+                "Net_Unit_Cost_Eur_per_MWh": 0.0,
+                "Net_Unit_Cost_Eur_per_kg": 0.0
+            }
+        },
+        "Loading 2": {
+            "Total_H2_Allocated_kg": 0.0,
+            "Mass_Flows_kg": {
+                "Truck_Filling": 0.0,
+                "Gas_Injection": 0.0
+            },
+            "Energy_Flows_MWh": {
+                "Grid_Electricity": 0.0,
+                "Truck_Load": 0.0,
+                "Gas_Injection_Electricity": 0.0,
+                "Gas_Injection": 0.0
+            },
+            "Operational_Costs_Eur": {
+                "Grid_Electricity": 0.0
+            },
+            "Revenues_Eur": {
+                "Gas_Market_Sales": 0.0,
+                "aFRR_Capacity": 0.0
+            },
+            "Financial_Summary": {
+                "Net_Position_Eur": 0.0,
+                "Net_Unit_Cost_Eur_per_MWh": 0.0,
+                "Net_Unit_Cost_Eur_per_kg": 0.0
+            }
+        },
+        "Loading 3": {
+            "Total_H2_Allocated_kg": 0.0,
+            "Mass_Flows_kg": {
+                "Truck_Filling": 0.0,
+                "Gas_Injection": 0.0
+            },
+            "Energy_Flows_MWh": {
+                "Grid_Electricity": 0.0,
+                "Truck_Load": 0.0,
+                "Gas_Injection_Electricity": 0.0,
+                "Gas_Injection": 0.0
+            },
+            "Operational_Costs_Eur": {
+                "Grid_Electricity": 0.0
+            },
+            "Revenues_Eur": {
+                "Gas_Market_Sales": 0.0,
+                "aFRR_Capacity": 0.0
+            },
+            "Financial_Summary": {
+                "Net_Position_Eur": 0.0,
+                "Net_Unit_Cost_Eur_per_MWh": 0.0,
+                "Net_Unit_Cost_Eur_per_kg": 0.0
+            }
+        },
+        "Loading 4": {
+            "Total_H2_Allocated_kg": 0.0,
+            "Mass_Flows_kg": {
+                "Truck_Filling": 0.0,
+                "Gas_Injection": 0.0
+            },
+            "Energy_Flows_MWh": {
+                "Grid_Electricity": 0.0,
+                "Truck_Load": 0.0,
+                "Gas_Injection_Electricity": 0.0,
+                "Gas_Injection": 0.0
+            },
+            "Operational_Costs_Eur": {
+                "Grid_Electricity": 0.0
+            },
+            "Revenues_Eur": {
+                "Gas_Market_Sales": 0.0,
+                "aFRR_Capacity": 0.0
+            },
+            "Financial_Summary": {
+                "Net_Position_Eur": 0.0,
+                "Net_Unit_Cost_Eur_per_MWh": 0.0,
+                "Net_Unit_Cost_Eur_per_kg": 0.0
+            }
+        }
+    },
+    "Gas_Injection_Lines": {
+        "Injection_Line_Virya Energy NV": {
+            "Total_H2_Allocated_kg": 815.62,
+            "Mass_Flows_kg": {
+                "Truck_Filling": 0.0,
+                "Gas_Injection": 815.62
+            },
+            "Energy_Flows_MWh": {
+                "Grid_Electricity": 46.18,
+                "Truck_Load": 0.0,
+                "Gas_Injection_Electricity": 46.18,
+                "Gas_Injection": 32.14
+            },
+            "Operational_Costs_Eur": {
+                "Grid_Electricity": 4617.89
+            },
+            "Revenues_Eur": {
+                "Gas_Market_Sales": 964.3,
+                "aFRR_Capacity": 0.0
+            },
+            "Financial_Summary": {
+                "Net_Position_Eur": 3653.59,
+                "Net_Unit_Cost_Eur_per_MWh": 0.0,
+                "Net_Unit_Cost_Eur_per_kg": 4.48
+            }
+        },
+        "Injection_Line_Messer Belgium NV": {
+            "Total_H2_Allocated_kg": 815.62,
+            "Mass_Flows_kg": {
+                "Truck_Filling": 0.0,
+                "Gas_Injection": 815.62
+            },
+            "Energy_Flows_MWh": {
+                "Grid_Electricity": 46.18,
+                "Truck_Load": 0.0,
+                "Gas_Injection_Electricity": 46.18,
+                "Gas_Injection": 32.14
+            },
+            "Operational_Costs_Eur": {
+                "Grid_Electricity": 4617.89
+            },
+            "Revenues_Eur": {
+                "Gas_Market_Sales": 964.3,
+                "aFRR_Capacity": 0.0
+            },
+            "Financial_Summary": {
+                "Net_Position_Eur": 3653.59,
+                "Net_Unit_Cost_Eur_per_MWh": 0.0,
+                "Net_Unit_Cost_Eur_per_kg": 4.48
+            }
+        }
+    },
+    "Offtakers": {
+        "Virya Energy NV": {
+            "Total_H2_Allocated_kg": 815.62,
+            "Mass_Flows_kg": {
+                "Truck_Filling": 0.0,
+                "Gas_Injection": 815.62
+            },
+            "Energy_Flows_MWh": {
+                "Grid_Electricity": 46.18,
+                "Truck_Load": 0.0,
+                "Gas_Injection_Electricity": 46.18,
+                "Gas_Injection": 32.14
+            },
+            "Operational_Costs_Eur": {
+                "Grid_Electricity": 4617.89
+            },
+            "Revenues_Eur": {
+                "Gas_Market_Sales": 964.3,
+                "aFRR_Capacity": 0.0
+            },
+            "Financial_Summary": {
+                "Net_Position_Eur": 3653.59,
+                "Net_Unit_Cost_Eur_per_MWh": 0.0,
+                "Net_Unit_Cost_Eur_per_kg": 4.48
+            }
+        },
+        "Messer Belgium NV": {
+            "Total_H2_Allocated_kg": 815.62,
+            "Mass_Flows_kg": {
+                "Truck_Filling": 0.0,
+                "Gas_Injection": 815.62
+            },
+            "Energy_Flows_MWh": {
+                "Grid_Electricity": 46.18,
+                "Truck_Load": 0.0,
+                "Gas_Injection_Electricity": 46.18,
+                "Gas_Injection": 32.14
+            },
+            "Operational_Costs_Eur": {
+                "Grid_Electricity": 4617.89
+            },
+            "Revenues_Eur": {
+                "Gas_Market_Sales": 964.3,
+                "aFRR_Capacity": 0.0
+            },
+            "Financial_Summary": {
+                "Net_Position_Eur": 3653.59,
+                "Net_Unit_Cost_Eur_per_MWh": 0.0,
+                "Net_Unit_Cost_Eur_per_kg": 4.48
+            }
+        }
+    }
+}

@@ -1,0 +1,26 @@
+{
+  "bays": [
+    {
+      "id": "5348edbd-26e5-4e49-a948-2d9daf3d0e47",
+      "label": "Loading Bay 1",
+      "bayOccupations": []
+    },
+    {
+      "id": "8dc062ef-82c0-4615-b65f-cbde0f9cdc46",
+      "label": "Loading Bay 2",
+      "bayOccupations": []
+    },
+    {
+      "id": "587c46b2-1326-4851-80c6-d26ebd7b07b4",
+      "label": "Loading Bay 3",
+      "bayOccupations": []
+    },
+    {
+      "id": "174dcd98-4838-48f5-9e87-6c59424f4176",
+      "label": "Loading Bay 4",
+      "bayOccupations": []
+    }
+  ],
+  "timeZoneId": "Europe/Brussels",
+  "staleSince": null
+}

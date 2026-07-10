@@ -1,0 +1,5 @@
+id,name,expect,result,notes
+NCC_UI_01,Costs Breakdown page loads — 3 NCC Forecast cards visible,PASS,PASS,
+NCC_UI_02,7-day navigation cycle — every day triggers fresh API data,PASS,PASS,
+NCC_UI_05,"€/MWh ↔ €/kg unit toggle — no errors, display updates",PASS,PASS,
+NCC_CALC_07,Daily NCC Python vs API: |diff| < 0.02 €/kg or |pct| < 1 % — all 7 days,PASS,PASS,

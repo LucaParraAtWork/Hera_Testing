@@ -1,0 +1,120 @@
+{
+  "bays": [
+    {
+      "id": "5348edbd-26e5-4e49-a948-2d9daf3d0e47",
+      "label": "Loading Bay 1",
+      "bayOccupations": [
+        {
+          "type": "Drop",
+          "color": "#808080",
+          "from": "2026-06-29T23:15:00Z",
+          "till": "2026-06-30T00:45:00Z"
+        },
+        {
+          "type": "Filling",
+          "color": "#4F81BD",
+          "from": "2026-06-30T01:00:00Z",
+          "till": "2026-06-30T03:45:00Z"
+        },
+        {
+          "type": "Pick",
+          "color": "#808080",
+          "from": "2026-06-30T04:00:00Z",
+          "till": "2026-06-30T06:00:00Z"
+        },
+        {
+          "type": "Drop",
+          "color": "#808080",
+          "from": "2026-06-30T10:30:00Z",
+          "till": "2026-06-30T12:00:00Z"
+        },
+        {
+          "type": "Filling",
+          "color": "#175649",
+          "from": "2026-06-30T12:15:00Z",
+          "till": "2026-06-30T15:00:00Z"
+        },
+        {
+          "type": "Pick",
+          "color": "#808080",
+          "from": "2026-06-30T15:15:00Z",
+          "till": "2026-06-30T17:15:00Z"
+        }
+      ]
+    },
+    {
+      "id": "8dc062ef-82c0-4615-b65f-cbde0f9cdc46",
+      "label": "Loading Bay 2",
+      "bayOccupations": [
+        {
+          "type": "Drop",
+          "color": "#808080",
+          "from": "2026-06-30T01:30:00Z",
+          "till": "2026-06-30T03:00:00Z"
+        },
+        {
+          "type": "Filling",
+          "color": "#175649",
+          "from": "2026-06-30T03:15:00Z",
+          "till": "2026-06-30T06:00:00Z"
+        },
+        {
+          "type": "Pick",
+          "color": "#808080",
+          "from": "2026-06-30T06:15:00Z",
+          "till": "2026-06-30T08:15:00Z"
+        }
+      ]
+    },
+    {
+      "id": "587c46b2-1326-4851-80c6-d26ebd7b07b4",
+      "label": "Loading Bay 3",
+      "bayOccupations": [
+        {
+          "type": "Drop",
+          "color": "#808080",
+          "from": "2026-06-30T03:45:00Z",
+          "till": "2026-06-30T05:15:00Z"
+        },
+        {
+          "type": "Filling",
+          "color": "#4F81BD",
+          "from": "2026-06-30T05:30:00Z",
+          "till": "2026-06-30T17:15:00Z"
+        },
+        {
+          "type": "Pick",
+          "color": "#808080",
+          "from": "2026-06-30T17:30:00Z",
+          "till": "2026-06-30T19:30:00Z"
+        }
+      ]
+    },
+    {
+      "id": "174dcd98-4838-48f5-9e87-6c59424f4176",
+      "label": "Loading Bay 4",
+      "bayOccupations": [
+        {
+          "type": "Drop",
+          "color": "#808080",
+          "from": "2026-06-30T06:00:00Z",
+          "till": "2026-06-30T07:30:00Z"
+        },
+        {
+          "type": "Filling",
+          "color": "#175649",
+          "from": "2026-06-30T07:45:00Z",
+          "till": "2026-06-30T10:30:00Z"
+        },
+        {
+          "type": "Pick",
+          "color": "#808080",
+          "from": "2026-06-30T10:45:00Z",
+          "till": "2026-06-30T12:45:00Z"
+        }
+      ]
+    }
+  ],
+  "timeZoneId": "Europe/Brussels",
+  "staleSince": null
+}

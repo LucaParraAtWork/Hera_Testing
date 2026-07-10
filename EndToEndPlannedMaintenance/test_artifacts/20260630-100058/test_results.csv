@@ -1,0 +1,3 @@
+id,name,expect,result,notes
+E2E_MAINT_01,"Power consumption ≤ nominal capacity (HPC Tuesday, Stack Thursday)",PASS,FAIL,
+E2E_MAINT_02,Loading Bay 1 — truck filling = 0 throughout maintenance week,PASS,PASS,

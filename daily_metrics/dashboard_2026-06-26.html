@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Costs Breakdown — 2026-06-26</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --teal-dark:   #1a5c4a;
+            --teal-mid:    #1d7a5e;
+            --teal-light:  #2a9d7e;
+            --teal-pale:   #e8f4f0;
+            --teal-border: #c8d8d0;
+            --header-bg:   #2d3b35;
+            --row-odd:     #f7fbf9;
+            --row-even:    #ffffff;
+            --text-main:   #1a2520;
+            --text-muted:  #5a7060;
+            --ncc-red:     #c0392b;
+            --total-bg:    #f0f7f4;
+            --tab-active:  #ffffff;
+            --tab-inactive:#e0e8e4;
+        }
+        body { font-family: 'IBM Plex Sans', sans-serif; background: #f2f7f5; color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px; }
+        .dashboard-card { background: #ffffff; border: 1px solid var(--teal-border); border-radius: 10px; width: 100%; max-width: 1100px; overflow: hidden; box-shadow: 0 4px 20px rgba(26,92,74,0.10); }
+        .tab-bar { display: flex; border-bottom: 2px solid var(--teal-border); background: var(--tab-inactive); }
+        .tab { padding: 12px 28px; font-size: 0.88rem; font-weight: 500; color: var(--text-muted); cursor: default; border-right: 1px solid var(--teal-border); letter-spacing: 0.01em; }
+        .tab.active { background: var(--tab-active); color: var(--teal-dark); font-weight: 600; border-bottom: 2px solid var(--teal-dark); margin-bottom: -2px; }
+        .toolbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--teal-border); background: #fafcfb; }
+        .unit-toggle { display: flex; border: 1.5px solid var(--teal-dark); border-radius: 6px; overflow: hidden; }
+        .unit-btn { padding: 6px 16px; font-size: 0.82rem; font-weight: 600; font-family: 'IBM Plex Mono', monospace; cursor: pointer; border: none; background: transparent; color: var(--teal-dark); transition: background 0.15s, color 0.15s; }
+        .unit-btn.active { background: var(--teal-dark); color: #fff; }
+        .date-nav { display: flex; align-items: center; gap: 6px; }
+        .date-nav .date-label { padding: 6px 18px; background: var(--teal-dark); color: #fff; border-radius: 6px; font-size: 0.85rem; font-weight: 600; font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.03em; }
+        .nav-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--teal-dark); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 700; }
+        .table-wrapper { overflow-x: auto; padding: 0; }
+        table { width: 100%; border-collapse: collapse; }
+        thead tr { background: var(--header-bg); }
+        thead th { padding: 13px 20px; text-align: left; font-size: 0.82rem; font-weight: 600; color: #ffffff; letter-spacing: 0.04em; text-transform: uppercase; }
+        thead th:not(:first-child) { text-align: right; }
+        tbody tr:nth-child(odd)  { background: var(--row-odd);  }
+        tbody tr:nth-child(even) { background: var(--row-even); }
+        tbody tr:hover { background: var(--teal-pale); transition: background 0.12s; }
+        td { padding: 11px 20px; font-size: 0.88rem; border-bottom: 1px solid #edf3f0; }
+        .label-cell { font-weight: 400; color: var(--text-main); white-space: nowrap; }
+        .value-cell { text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 0.86rem; color: var(--text-main); white-space: nowrap; }
+        .total-cell { color: var(--teal-dark); font-weight: 600; }
+        tr.net-costs-row td { font-weight: 600; border-top: 2px solid var(--teal-border); color: var(--teal-dark); }
+        .ncc-section { display: flex; justify-content: flex-end; gap: 16px; padding: 20px 24px 24px; flex-wrap: wrap; }
+        .ncc-card { border: 2px solid var(--teal-dark); border-radius: 8px; padding: 14px 24px; min-width: 180px; text-align: center; }
+        .ncc-card.total { border-color: #2563eb; }
+        .ncc-label { font-size: 0.78rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+        .ncc-value { font-family: 'IBM Plex Mono', monospace; font-size: 1.45rem; font-weight: 700; color: var(--ncc-red); line-height: 1.1; }
+        .ncc-entity { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; font-weight: 500; }
+        .dashboard-footer { margin-top: 18px; font-size: 0.74rem; color: var(--text-muted); letter-spacing: 0.03em; }
+    </style>
+</head>
+<body>
+
+<div class="dashboard-card">
+    <div class="tab-bar">
+        <div class="tab">Maintenance</div>
+        <div class="tab">Bay Occupancy</div>
+        <div class="tab">Profiles</div>
+        <div class="tab active">Costs Breakdown</div>
+    </div>
+    <div class="toolbar">
+        <div class="unit-toggle">
+            <button class="unit-btn active" onclick="setUnit('mwh', this)">€/MWh</button>
+            <button class="unit-btn" onclick="setUnit('kg', this)">€/kg</button>
+        </div>
+        <div class="date-nav">
+            <button class="nav-btn">&lt;</button>
+            <span class="date-label">2026-06-26</span>
+            <button class="nav-btn">&gt;</button>
+            <button class="nav-btn">&gt;&gt;</button>
+        </div>
+    </div>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Quantities</th>
+                    <th style="text-align:right">Virya Energy NV</th>
+                    <th style="text-align:right">Messer Belgium NV</th>
+                    <th style="text-align:right">Total Planning</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                
+        <tr>
+            <td class="label-cell">Electricity Consumed</td>
+            <td class="value-cell">30.97 MWh</td>
+            <td class="value-cell">188.48 MWh</td>
+            <td class="value-cell total-cell">220.77 MWh</td>
+        </tr>
+        <tr>
+            <td class="label-cell">Truck Filling</td>
+            <td class="value-cell">0.00 MWh</td>
+            <td class="value-cell">157.51 MWh</td>
+            <td class="value-cell total-cell">157.51 MWh</td>
+        </tr>
+        <tr>
+            <td class="label-cell">Gas (Voluntary)</td>
+            <td class="value-cell">0.00 MWh</td>
+            <td class="value-cell">0.00 MWh</td>
+            <td class="value-cell total-cell">0.00 MWh</td>
+        </tr>
+        <tr style="border-bottom: 2px solid #c8d8d0;">
+            <td class="label-cell">Gas (MSOL)</td>
+            <td class="value-cell">30.97 MWh</td>
+            <td class="value-cell">30.97 MWh</td>
+            <td class="value-cell total-cell">63.26 MWh</td>
+        </tr>
+        <tr>
+            <td class="label-cell">Electricity Costs For Truck Filling</td>
+            <td class="value-cell">€ 0,00</td>
+            <td class="value-cell">€ 15.751,00</td>
+            <td class="value-cell total-cell">€ 15.751,00</td>
+        </tr>
+        <tr>
+            <td class="label-cell">Electricity Costs for Voluntary Gas</td>
+            <td class="value-cell">€ 0,00</td>
+            <td class="value-cell">€ 0,00</td>
+            <td class="value-cell total-cell">€ 0,00</td>
+        </tr>
+        <tr>
+            <td class="label-cell">Voluntary Gas Revenue</td>
+            <td class="value-cell">€ 0,00</td>
+            <td class="value-cell">€ 0,00</td>
+            <td class="value-cell total-cell">€ 0,00</td>
+        </tr>
+        <tr>
+            <td class="label-cell">MSOL Coverage</td>
+            <td class="value-cell">€ 648,00</td>
+            <td class="value-cell">€ 648,00</td>
+            <td class="value-cell total-cell">€ 5.000,00</td>
+        </tr>
+        <tr>
+            <td class="label-cell">Net Costs</td>
+            <td class="value-cell">€ 2.449,00</td>
+            <td class="value-cell">€ 18.200,00</td>
+            <td class="value-cell total-cell">€ 20.751,00</td>
+        </tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="ncc-section">
+        <div class="ncc-card">
+            <div class="ncc-label">NCC Forecast</div>
+            <div class="ncc-value">4,47 €/kg</div>
+            <div class="ncc-entity">Virya Energy NV</div>
+        </div>
+        <div class="ncc-card">
+            <div class="ncc-label">NCC Forecast</div>
+            <div class="ncc-value">5,07 €/kg</div>
+            <div class="ncc-entity">Messer Belgium NV</div>
+        </div>
+        <div class="ncc-card total">
+            <div class="ncc-label">NCC Forecast</div>
+            <div class="ncc-value">4,98 €/kg</div>
+            <div class="ncc-entity">Total Planning</div>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-footer">
+    Generated by calculate_metrics.py &mdash; Date: 2026-06-26
+    &nbsp;|&nbsp; Price Elec: 100.0 €/MWh &nbsp;|&nbsp; Price Gas: 30.0 €/MWh
+</div>
+
+<script>
+    (function() {
+        const rows = document.querySelectorAll('#table-body tr');
+        if (rows.length > 0) { rows[rows.length - 1].classList.add('net-costs-row'); }
+    })();
+    function setUnit(unit, btn) {
+        document.querySelectorAll('.unit-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+</script>
+
+</body>
+</html>
