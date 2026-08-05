@@ -1,12 +1,13 @@
 """
-HERA environment configuration (DEV / TEST / TEST_BIS).
+HERA environment configuration (TEST / TEST_BIS).
+DEV is intentionally omitted — its backends are unauthenticated.
 """
 
 from __future__ import annotations
 
 from typing import Literal
 
-EnvName = Literal["DEV", "TEST", "TEST_BIS"]
+EnvName = Literal["TEST", "TEST_BIS"]
 
 # Shared TEST API endpoints (Profile Calculation + Plant services)
 _TEST_API = {
@@ -15,16 +16,6 @@ _TEST_API = {
 }
 
 ENVIRONMENTS: dict[EnvName, dict[str, str | int]] = {
-    "DEV": {
-        "label": "Development",
-        "profile_calc_base": "https://heraprofilecalculationservicedev.azurewebsites.net",
-        "plant_base": "https://heraplantservicedev.azurewebsites.net",
-        "mqtt_host": "a6af9b771c814f19adf12e1b3a7cbb75.s1.eu.hivemq.cloud",
-        "mqtt_port": 8883,
-        "mqtt_user": "HERA3",
-        "mqtt_pass": "HeraTestUserThing01",
-        "mqtt_ca_file": "./certs/isrgrootx1.pem",
-    },
     "TEST": {
         "label": "Test",
         **_TEST_API,
@@ -44,10 +35,9 @@ ENVIRONMENTS: dict[EnvName, dict[str, str | int]] = {
     },
 }
 
-ENV_CHOICES: list[EnvName] = ["DEV", "TEST", "TEST_BIS"]
+ENV_CHOICES: list[EnvName] = ["TEST", "TEST_BIS"]
 
 ENV_PILL_COLORS: dict[EnvName, str] = {
-    "DEV":      "#0969da",
     "TEST":     "#8250df",
     "TEST_BIS": "#d97706",
 }

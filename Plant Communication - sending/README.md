@@ -33,14 +33,8 @@ The browser will open automatically at http://localhost:8501.
 
 ## Broker configuration
 
-| Setting | Value |
-|---------|-------|
-| Host | `a6af9b771c814f19adf12e1b3a7cbb75.s1.eu.hivemq.cloud` |
-| Port | `8883` (TLS) |
-| Topic | `HOF/+/+/CMD/#` |
-| User | `HERA3` |
-
-To change these values edit the constants at the top of `mqtt_client.py`.
+Broker host/credentials are selected per environment in `config.py`
+(TEST / TEST_BIS). Default topic: `HOF/+/+/CMD/#`.
 
 ## Expected topic structure
 

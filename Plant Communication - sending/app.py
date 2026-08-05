@@ -423,7 +423,7 @@ html, body, [class*="css"] {color:#1c2128;}
 """, unsafe_allow_html=True)
 
 # ── Session state ─────────────────────────────────────────────────────────────
-if "hera_env" not in st.session_state:
+if "hera_env" not in st.session_state or st.session_state.hera_env not in ENV_CHOICES:
     st.session_state.hera_env = DEFAULT_ENV
 set_env(st.session_state.hera_env)
 
