@@ -2,6 +2,7 @@
 HERA - Plant Communication (DEMO)
 ──────────────────────────────────
 • Subscribes to HiveMQ Cloud (HOF/+/+/CMD/#) via a background MQTT thread
+• Emits dummy-plant ACS/PLC heartbeats and listens for HERA (STL) heartbeats
 • Displays live command profiles per device category in Europe/Brussels time
 • Fetches scheduled profiles from the HERA Profile Calculation API
 • Overlays Scheduled vs Actual for coherence verification
@@ -11,7 +12,7 @@ from __future__ import annotations
 
 import math as _math
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from zoneinfo import ZoneInfo
 
@@ -38,7 +39,14 @@ from api_client import (
     parse_profiles,
 )
 from config import DEFAULT_ENV, ENV_CHOICES, ENV_PILL_COLORS, ENVIRONMENTS, get_config, get_env, set_env
-from mqtt_client import MqttMessage, get_state, reconnect_mqtt, start_mqtt
+from mqtt_client import (
+    HB_INTERVAL_S,
+    HB_STALE_S,
+    MqttMessage,
+    get_state,
+    reconnect_mqtt,
+    start_mqtt,
+)
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -70,6 +78,70 @@ def _hex_to_rgba(hex_color: str, alpha: float = 0.15) -> str:
         h = "".join(c * 2 for c in h)
     r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
     return f"rgba({r},{g},{b},{alpha})"
+
+
+def _hb_age_seconds(when: Optional[datetime]) -> Optional[float]:
+    if when is None:
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return (datetime.now(tz=timezone.utc) - when).total_seconds()
+
+
+def _hb_status_dot(age_s: Optional[float]) -> str:
+    if age_s is None:
+        return "hb-dot-wait"
+    return "hb-dot-ok" if age_s <= HB_STALE_S else "hb-dot-stale"
+
+
+def _fmt_hb_when(when: Optional[datetime]) -> str:
+    if when is None:
+        return "never"
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    local = when.astimezone(BRUSSELS)
+    age = _hb_age_seconds(when)
+    age_txt = f"{int(age)}s ago" if age is not None else "?"
+    return f"{local.strftime('%H:%M:%S')} ({age_txt})"
+
+
+def render_heartbeat_popover(state) -> None:
+    """Top-right compact status + click-for-details popover."""
+    hb = state.heartbeat_snapshot()
+    plant_age = _hb_age_seconds(hb.plant_emitted_at)
+    hera_age = _hb_age_seconds(hb.hera_received_at)
+    plant_dot = _hb_status_dot(plant_age)
+    hera_dot = _hb_status_dot(hera_age)
+
+    plant_lbl = "OK" if plant_age is not None and plant_age <= HB_STALE_S else (
+        "—" if plant_age is None else "stale"
+    )
+    hera_lbl = "OK" if hera_age is not None and hera_age <= HB_STALE_S else (
+        "—" if hera_age is None else "stale"
+    )
+
+    with st.popover(f"♥ HB · Plant {plant_lbl} · HERA {hera_lbl}", use_container_width=True):
+        st.markdown(
+            f'<div style="margin-bottom:8px;">'
+            f'<span class="pill pill-muted">'
+            f'<span class="hb-dot {plant_dot}"></span>Plant → HERA &nbsp;'
+            f'<span class="hb-dot {hera_dot}"></span>HERA → Plant'
+            f'</span></div>',
+            unsafe_allow_html=True,
+        )
+        st.caption(f"Cadence ~{int(HB_INTERVAL_S)}s · stale after {int(HB_STALE_S)}s")
+        st.markdown(
+            f"**Plant → HERA** (ACS/PLC emit)  \n"
+            f"Last: `{_fmt_hb_when(hb.plant_emitted_at)}`  \n"
+            f"Value: `{hb.plant_value or '—'}`"
+        )
+        st.markdown(
+            f"**HERA → Plant** (STL receive)  \n"
+            f"Last: `{_fmt_hb_when(hb.hera_received_at)}`  \n"
+            f"Value: `{hb.hera_value or '—'}`  \n"
+            f"Publisher ts: `{hb.hera_publisher_ts or '—'}`"
+        )
+
 
 # Profile types that together represent the total scheduled output rate
 # (rectifier setpoint = sum of all three)
@@ -388,6 +460,12 @@ st.markdown("""
 .pill-green  {background:#d4f5e0;color:#1a7f37;}
 .pill-red    {background:#fde8e8;color:#b91c1c;}
 .pill-yellow {background:#fef3c7;color:#92400e;}
+.pill-muted  {background:#eaeef2;color:#57606a;}
+.hb-dot {display:inline-block;width:.55rem;height:.55rem;border-radius:50%;
+         margin-right:4px;vertical-align:middle;}
+.hb-dot-ok   {background:#1a7f37;}
+.hb-dot-stale{background:#b91c1c;}
+.hb-dot-wait {background:#d97706;}
 .log-row  {font-family:monospace;font-size:.78rem;color:#57606a;}
 .log-topic{color:#0969da;font-weight:600;}
 /* make default text darker */
@@ -1538,7 +1616,7 @@ else:
 _env_pill_color = ENV_PILL_COLORS.get(get_env(), "#57606a")
 _env_label = ENVIRONMENTS[get_env()]["label"]
 
-_hdr_left, _hdr_right = st.columns([5, 1])
+_hdr_left, _hdr_right = st.columns([4, 2])
 with _hdr_left:
     st.markdown(
         f'<h1 style="color:#1c2128;margin-bottom:0;">'
@@ -1555,25 +1633,29 @@ with _hdr_left:
         unsafe_allow_html=True,
     )
 with _hdr_right:
-    _env_opts = list(ENV_CHOICES)
-    _env_index = (
-        _env_opts.index(st.session_state.hera_env)
-        if st.session_state.hera_env in _env_opts
-        else _env_opts.index(DEFAULT_ENV)
-    )
-    _env_choice = st.selectbox(
-        "Environment",
-        _env_opts,
-        index=_env_index,
-        key="hera_env_select",
-        help="Switch API endpoints and MQTT broker (TEST and TEST_BIS share the same APIs).",
-    )
-    st.markdown(
-        f'<div style="text-align:right;margin-top:-8px;">'
-        f'<span class="pill" style="background:{_env_pill_color}22;color:{_env_pill_color};">'
-        f'{_env_label}</span></div>',
-        unsafe_allow_html=True,
-    )
+    _hb_col, _env_col = st.columns([1.2, 1])
+    with _hb_col:
+        render_heartbeat_popover(broker_state)
+    with _env_col:
+        _env_opts = list(ENV_CHOICES)
+        _env_index = (
+            _env_opts.index(st.session_state.hera_env)
+            if st.session_state.hera_env in _env_opts
+            else _env_opts.index(DEFAULT_ENV)
+        )
+        _env_choice = st.selectbox(
+            "Environment",
+            _env_opts,
+            index=_env_index,
+            key="hera_env_select",
+            help="Switch API endpoints and MQTT broker (TEST and TEST_BIS share the same APIs).",
+        )
+        st.markdown(
+            f'<div style="text-align:right;margin-top:-8px;">'
+            f'<span class="pill" style="background:{_env_pill_color}22;color:{_env_pill_color};">'
+            f'{_env_label}</span></div>',
+            unsafe_allow_html=True,
+        )
 
 if _env_choice != st.session_state.hera_env:
     st.session_state.hera_env = _env_choice
