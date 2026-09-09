@@ -1,0 +1,2 @@
+n,id,group,name,expect,result,notes,screenshot,desc
+18,NAV_01,navigation,Scroll through weeks with date picker (Nom_WN_07),PASS,ERROR,maximum recursion depth exceeded,,"Click the current-week label (not </>) to open the calendar, pick a day in an adjacent month, verify the week updates, then return to the target week and verify no stale data remains"

@@ -1,0 +1,14 @@
+2026/07/10-13:53:15.914 3aac Reusing MANIFEST C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\Weekly Nomination\test_artifacts_ui\playwright_session\Default\Session Storage/MANIFEST-000001
+2026/07/10-13:53:15.921 3aac Recovering log #16
+2026/07/10-13:53:15.922 3aac Level-0 table #19: started
+2026/07/10-13:53:15.962 3aac Level-0 table #19: 36311 bytes OK
+2026/07/10-13:53:15.985 3aac Delete type=0 #16
+2026/07/10-13:53:15.989 b25c Compacting 4@0 + 1@1 files
+2026/07/10-13:53:16.019 b25c Generated table #21@0: 231 keys, 19766 bytes
+2026/07/10-13:53:16.019 b25c Compacted 4@0 + 1@1 files => 19766 bytes
+2026/07/10-13:53:16.023 b25c compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/10-13:53:16.026 b25c Delete type=2 #8
+2026/07/10-13:53:16.026 b25c Delete type=2 #11
+2026/07/10-13:53:16.027 b25c Delete type=2 #13
+2026/07/10-13:53:16.027 b25c Delete type=2 #17
+2026/07/10-13:53:16.028 b25c Delete type=2 #19
