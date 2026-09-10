@@ -188,11 +188,38 @@ SCENARIOS = [
 # ==========================================================================
 # Internals
 # ==========================================================================
-import re, time, csv as _csv
+import argparse, re, sys, time, csv as _csv
 from pathlib import Path
 from datetime import date, datetime, timedelta
 from playwright.sync_api import sync_playwright
 from _weekly_csv_sync import ensure_next_week
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from uat_excel_reporter import record_results
+
+# This script's own scenario ids ("UI_06", "AN_02", "SETUP_01", ...) don't match
+# the Excel's "Test case ID" column directly — map each to the real Excel id(s).
+# UI_06..UI_11 are credited twice: once under Nominations (Nom_WN_UI_*) and once
+# under the Scheduler process (SCHED_CONF/REJ_*), which shares the same tested
+# mechanism (see update_sched_conf_rej_jul2026.py).
+_SCHED_EXTRA_CREDIT = {
+    "UI_06": "SCHED_CONF_01", "UI_07": "SCHED_REJ_01",
+    "UI_08": "SCHED_CONF_02", "UI_09": "SCHED_REJ_02",
+    "UI_10": "SCHED_CONF_03", "UI_11": "SCHED_REJ_03",
+}
+
+
+def _excel_ids_for(internal_id: str) -> list[str]:
+    if internal_id.startswith("SETUP_"):
+        return [f"Nom_WN_UI_{internal_id}"]
+    if internal_id.startswith("UI_"):
+        ids = [f"Nom_WN_{internal_id}"]
+        if internal_id in _SCHED_EXTRA_CREDIT:
+            ids.append(_SCHED_EXTRA_CREDIT[internal_id])
+        return ids
+    if internal_id.startswith("AN_"):
+        return [f"Nom_{internal_id}"]
+    return []
 
 HERE          = Path(__file__).parent
 WEEK36_CSV    = HERE / "Virya_Nomination_Week36.csv"
@@ -1609,6 +1636,14 @@ def _add_slot_ui(page, nominations_url, shots_dir):
 def main():
     global TARGET_WEEK, TARGET_YEAR
 
+    parser = argparse.ArgumentParser(description="Hera Weekly Nomination UI Interaction Tests")
+    parser.add_argument(
+        "--excel", default=None, metavar="PATH",
+        help="Report file to write Pass/Fail into. Default: create a new "
+             "timestamped copy under UAT Testing/Reports/.",
+    )
+    args, _ = parser.parse_known_args()
+
     # Before anything else: make sure the CSV family targets next week, not
     # whatever week it was last generated for.
     print("  Checking weekly nomination CSVs are dated for next week…")
@@ -1764,6 +1799,10 @@ def main():
             w.writerow({k: r.get(k, "") for k in w.fieldnames})
     print(f"  Results    : {out}")
     print(f"  Screenshots: {run_dir}\n")
+
+    excel_rows = [(excel_id, r["result"], r.get("notes", ""))
+                  for r in results for excel_id in _excel_ids_for(r["id"])]
+    record_results(excel_rows, xlsx_path=args.excel, source="test_weekly_ui.py")
 
 
 if __name__ == "__main__":

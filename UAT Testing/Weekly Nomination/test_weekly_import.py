@@ -152,11 +152,14 @@ SLOWMO  = 0     # Playwright action delay in ms (0 = full speed; 200 = visible)
 # ===========================================================================
 # Internal helpers
 # ===========================================================================
-import re, sys, time, csv as _csv
+import argparse, re, sys, time, csv as _csv
 from pathlib import Path
 from datetime import datetime
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 from _weekly_csv_sync import ensure_next_week
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from uat_excel_reporter import record_results
 
 
 HERE = Path(__file__).parent  # folder containing this script and all CSVs
@@ -528,6 +531,14 @@ def _import_csv(page, nominations_url: str, csv_path: Path,
 def main():
     global TARGET_WEEK, TARGET_YEAR
 
+    parser = argparse.ArgumentParser(description="Hera Weekly Nomination Import Test Suite")
+    parser.add_argument(
+        "--excel", default=None, metavar="PATH",
+        help="Report file to write Pass/Fail into. Default: create a new "
+             "timestamped copy under UAT Testing/Reports/.",
+    )
+    args, _ = parser.parse_known_args()
+
     # Before anything else: make sure the CSV family targets next week, not
     # whatever week it was last generated for.
     print("  Checking weekly nomination CSVs are dated for next week…")
@@ -657,6 +668,9 @@ def main():
             w.writerow({**r, "match": r["expect"] == "?" or r["result"] == r["expect"]})
     print(f"  Results saved to: {results_csv}")
     print(f"  Screenshots in : {run_dir}\n")
+
+    record_results([(r["id"], r["result"], r.get("notes", "")) for r in results],
+                    xlsx_path=args.excel, source="test_weekly_import.py")
 
 
 if __name__ == "__main__":

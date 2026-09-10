@@ -33,7 +33,7 @@ The script has two phases:
 
 Week selection
   The target week is derived automatically from the first CSV filename:
-    "Virya_Nomination_Week28.csv"  →  week 28
+    "Virya_Nomination_Week38.csv"  →  week 38
     "Messer_Nomination_Week20.csv" →  week 20
   The year defaults to the current calendar year.  Pass --year to override.
 
@@ -47,15 +47,15 @@ CSV resolution
 Run:
   # Full run with two CSVs (one per offtaker):
   python "EndToEndPlannedMaintenance/test_e2e_maintenance_profiles.py" \\
-         --csv "Messer_Nomination_Week28.csv" "Virya_Nomination_Week28.csv"
+         --csv "Messer_Nomination_Week38.csv" "Virya_Nomination_Week38.csv"
 
   # Setup already done → jump straight to the profile compliance test:
   python "EndToEndPlannedMaintenance/test_e2e_maintenance_profiles.py" \\
-         --csv "Messer_Nomination_Week28.csv" "Virya_Nomination_Week28.csv" --skip-setup
+         --csv "Messer_Nomination_Week38.csv" "Virya_Nomination_Week38.csv" --skip-setup
 
   # Resume setup from step 3 (maintenances not yet added) then run test:
   python "EndToEndPlannedMaintenance/test_e2e_maintenance_profiles.py" \\
-         --csv "Messer_Nomination_Week28.csv" "Virya_Nomination_Week28.csv" --from 3
+         --csv "Messer_Nomination_Week38.csv" "Virya_Nomination_Week38.csv" --from 3
 
   # Explicit year (e.g. week 52 CSV tested in January):
   python "EndToEndPlannedMaintenance/test_e2e_maintenance_profiles.py" \\
@@ -135,6 +135,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from uat_excel_reporter import record_results
 
 HERE = Path(__file__).parent
 ROOT = HERE.parent   # UAT Testing root
@@ -776,7 +779,7 @@ def main():
     parser.add_argument("--csv", nargs="+", default=[],
                         help="One or more nomination CSVs (one per offtaker). "
                              "Week number is derived from the first filename "
-                             "(e.g. Virya_Nomination_Week28.csv → week 28).")
+                             "(e.g. Virya_Nomination_Week38.csv → week 38).")
     parser.add_argument("--env", default=ENV, help="'dev' or 'test'")
     parser.add_argument("--year", dest="year", type=int, default=0,
                         help="Year for the target week (default: current calendar year).")
@@ -784,6 +787,9 @@ def main():
                         help="Start setup from step N (1–4). Default: 1.")
     parser.add_argument("--skip-setup", action="store_true",
                         help="Skip all setup steps; go directly to the profile test.")
+    parser.add_argument("--excel", default=None, metavar="PATH",
+                        help="Report file to write Pass/Fail into. Default: create a "
+                             "new timestamped copy under UAT Testing/Reports/.")
     args = parser.parse_args()
 
     env_name, base_url = _resolve_env(args.env)
@@ -998,6 +1004,9 @@ def main():
         w.writerow(["id", "name", "expect", "result", "notes"])
         for sc, res, _, notes in all_results:
             w.writerow([sc["id"], sc["name"], sc["expect"], res, notes])
+
+    record_results([(sc["id"], res, notes) for sc, res, _, notes in all_results],
+                    xlsx_path=args.excel, source="test_e2e_maintenance_profiles.py")
 
 
 if __name__ == "__main__":

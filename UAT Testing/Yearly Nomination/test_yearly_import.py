@@ -149,10 +149,13 @@ SLOWMO  = 0     # Playwright action delay in ms (0 = full speed; 200 = visible)
 # ===========================================================================
 # Internal helpers
 # ===========================================================================
-import re, time, csv as _csv
+import argparse, re, sys, time, csv as _csv
 from pathlib import Path
 from datetime import datetime
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from uat_excel_reporter import record_results
 
 
 HERE = Path(__file__).parent  # folder containing this script and all CSVs
@@ -427,6 +430,14 @@ def _import_yearly_csv(page, yearly_url: str, csv_path: Path,
 # Main
 # ===========================================================================
 def main():
+    parser = argparse.ArgumentParser(description="Hera Yearly Nomination Import Test Suite")
+    parser.add_argument(
+        "--excel", default=None, metavar="PATH",
+        help="Report file to write Pass/Fail into. Default: create a new "
+             "timestamped copy under UAT Testing/Reports/.",
+    )
+    args, _ = parser.parse_known_args()
+
     env_name, base_url = _resolve_env()
     yearly_url = f"{base_url}/nominations/yearly"
 
@@ -542,6 +553,9 @@ def main():
                         "match": r["expect"] == "?" or r["result"] == r["expect"]})
     print(f"  Results saved to : {results_csv}")
     print(f"  Screenshots in   : {run_dir}\n")
+
+    record_results([(r["id"], r["result"], r.get("notes", "")) for r in results],
+                    xlsx_path=args.excel, source="test_yearly_import.py")
 
 
 if __name__ == "__main__":

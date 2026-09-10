@@ -104,6 +104,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from uat_excel_reporter import record_results
+
 HERE = Path(__file__).parent
 
 
@@ -1794,6 +1797,11 @@ def main():
         "--from", dest="start_from", type=int, default=START_FROM, metavar="N",
         help="Resume from scenario N (1-based).",
     )
+    parser.add_argument(
+        "--excel", default=None, metavar="PATH",
+        help="Report file to write Pass/Fail into. Default: create a new "
+             "timestamped copy under UAT Testing/Reports/.",
+    )
     args, _ = parser.parse_known_args()
     start_from = max(1, args.start_from)
 
@@ -1907,6 +1915,9 @@ def main():
 
     print(f"  Results saved to : {results_csv}")
     print(f"  Screenshots in   : {run_dir}\n")
+
+    record_results([(r["id"], r["result"], r.get("notes", "")) for r in results],
+                    xlsx_path=args.excel, source="test_planned_maintenance.py")
 
 
 if __name__ == "__main__":

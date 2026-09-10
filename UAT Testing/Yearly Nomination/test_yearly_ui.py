@@ -99,6 +99,9 @@ from datetime import datetime
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from uat_excel_reporter import record_results
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
@@ -626,6 +629,10 @@ def main():
     parser.add_argument(
         "--from", dest="start_from", type=int, default=START_FROM, metavar="N",
         help="Resume from scenario N (1-based).")
+    parser.add_argument(
+        "--excel", default=None, metavar="PATH",
+        help="Report file to write Pass/Fail into. Default: create a new "
+             "timestamped copy under UAT Testing/Reports/.")
     args, _ = parser.parse_known_args()
     start_from = max(1, args.start_from)
 
@@ -732,6 +739,9 @@ def main():
             w.writerow({k: r.get(k, "") for k in w.fieldnames})
     print(f"\n  Results    : {out}")
     print(f"  Artifacts  : {run_dir}\n")
+
+    record_results([(r["excel_id"], r["result"], r.get("notes", "")) for r in results],
+                    xlsx_path=args.excel, source="test_yearly_ui.py")
 
 
 if __name__ == "__main__":

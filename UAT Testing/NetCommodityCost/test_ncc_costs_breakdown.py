@@ -118,6 +118,9 @@ import pandas as pd
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import sync_playwright
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from uat_excel_reporter import record_results
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(line_buffering=True)
 
@@ -1362,6 +1365,9 @@ def _print_summary(all_results: list) -> None:
             w.writerow([sc["id"], sc["name"], sc["expect"], res, notes])
     print(f"\n  Results saved to {csv_path}")
 
+    record_results([(sc["id"], res, notes) for sc, res, notes, _ in all_results],
+                    xlsx_path=args.excel, source="test_ncc_costs_breakdown.py")
+
 
 # ==============================================================================
 # MAIN
@@ -1388,6 +1394,11 @@ def main() -> None:
         type=int,
         default=START_FROM,
         help="Skip scenarios 1…N-1 (default: 1)",
+    )
+    parser.add_argument(
+        "--excel", default=None, metavar="PATH",
+        help="Report file to write Pass/Fail into. Default: create a new "
+             "timestamped copy under UAT Testing/Reports/.",
     )
     args = parser.parse_args()
 
