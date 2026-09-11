@@ -754,12 +754,12 @@ def _ask(scenario: dict, auto: str, reason: str) -> tuple[str, str]:
     if reason:
         print(f"  Reason        : {reason}")
     default = scenario["expect"] if scenario["expect"] in ("PASS", "FAIL") else "PASS"
-    print(f"  Confirm? (P=pass / F=fail / Enter={default}): ", end="", flush=True)
+    print(f"  Confirm? (P=pass / F=fail / S=skip / I=inconclusive / Enter={default}): ", end="", flush=True)
     try:
         raw = input().strip().upper()
     except EOFError:
         raw = ""
-    result = {"P": "PASS", "F": "FAIL"}.get(raw, auto if auto in ("PASS", "FAIL") else default)
+    result = {"P": "PASS", "F": "FAIL", "S": "SKIP", "I": "?"}.get(raw, auto if auto in ("PASS", "FAIL") else default)
     notes  = ""
     try:
         notes = input("  Notes (optional): ").strip()

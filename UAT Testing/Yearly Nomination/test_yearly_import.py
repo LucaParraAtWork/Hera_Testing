@@ -333,9 +333,11 @@ def _ask(tc_id: str, desc: str, expect: str,
 
     default = auto if auto in ("PASS", "FAIL") else "PASS"
     try:
-        raw = input(f"  Confirm? (P=pass / F=fail / Enter={default}): ").strip().lower()
+        raw = input(f"  Confirm? (P=pass / F=fail / S=skip / I=inconclusive / Enter={default}): ").strip().lower()
         result = ("FAIL" if raw in ("f", "fail", "n", "no")
                   else "PASS" if raw in ("p", "pass", "y", "yes", "o", "oui")
+                  else "SKIP" if raw in ("s", "skip")
+                  else "?" if raw in ("i", "inconclusive")
                   else default)
         notes = input("  Notes (optional): ").strip()
         return result, notes

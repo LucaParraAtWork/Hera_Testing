@@ -1333,11 +1333,13 @@ def _ask(scenario: dict, auto: str, reason: str) -> tuple[str, str]:
     default = scenario["expect"] if scenario["expect"] in ("PASS", "FAIL") else auto or "PASS"
     try:
         raw = input(
-            f"  Confirm? (P=pass / F=fail / Enter={default}): "
+            f"  Confirm? (P=pass / F=fail / S=skip / I=inconclusive / Enter={default}): "
         ).strip().lower()
         result = (
             "FAIL" if raw in ("f", "fail", "n", "no")
             else "PASS" if raw in ("p", "pass", "y", "yes", "o", "oui")
+            else "SKIP" if raw in ("s", "skip")
+            else "?" if raw in ("i", "inconclusive")
             else default
         )
         notes = input("  Notes (optional): ").strip()
