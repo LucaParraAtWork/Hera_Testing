@@ -20,7 +20,8 @@ echo ============================================================
 echo  Hera UAT - Generate Dashboard
 echo  This reads the most recently updated Excel report under
 echo  Reports\ and builds a fresh chart-driven dashboard under
-echo  Dashboards\. The source report is never modified.
+echo  Dashboards\, plus a matching PowerPoint deck under
+echo  Dashboards\PowerPoint\. The source report is never modified.
 echo ============================================================
 echo.
 
@@ -56,6 +57,19 @@ if defined LATEST (
     echo  open automatically. Check the Dashboards\ folder.
     echo ============================================================
 )
+
+rem Also open the matching PowerPoint deck (newest .pptx under
+rem Dashboards\PowerPoint\, skipping Excel/PowerPoint's own "~$" lock files).
+set "LATEST_PPTX="
+for /f "delims=" %%F in ('dir /b /o-d "Dashboards\PowerPoint\*.pptx" 2^>nul ^| findstr /v /b "~$"') do (
+    if not defined LATEST_PPTX set "LATEST_PPTX=%%F"
+)
+if defined LATEST_PPTX (
+    echo  Opening Dashboards\PowerPoint\!LATEST_PPTX!
+    echo ============================================================
+    start "" "Dashboards\PowerPoint\!LATEST_PPTX!"
+)
+
 echo  Press any key to close this window.
 pause >nul
 endlocal

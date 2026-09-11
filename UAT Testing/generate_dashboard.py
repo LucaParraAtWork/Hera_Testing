@@ -37,10 +37,23 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
+try:
+    from pptx import Presentation
+    from pptx.chart.data import CategoryChartData
+    from pptx.dml.color import RGBColor
+    from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
+    from pptx.enum.shapes import MSO_SHAPE
+    from pptx.enum.text import PP_ALIGN
+    from pptx.util import Emu, Pt
+except ImportError:
+    Presentation = None
+
 HERE = Path(__file__).resolve().parent
 TEMPLATE_PATH = HERE / "Hera_UAT_Test_Plan.xlsx"
 REPORTS_DIR = HERE / "Reports"
 DASHBOARDS_DIR = HERE / "Dashboards"
+PPTX_DIR = DASHBOARDS_DIR / "PowerPoint"
+PPTX_TEMPLATE_PATH = PPTX_DIR / "UAT_DAshboard.pptx"
 
 ID_COL = "Test case ID"
 PROCESS_COL = "Process"
@@ -474,9 +487,338 @@ def build_details_sheet(wb, rows: list[dict]):
 
 
 # ---------------------------------------------------------------------------
+# PowerPoint deck (optional -- only runs if python-pptx is installed and the
+# template exists). The template under Dashboards/PowerPoint/ is never
+# written to directly, same "read template, save a fresh timestamped copy"
+# convention as the Excel side (see uat_excel_reporter.py).
+# ---------------------------------------------------------------------------
+PPTX_ROWS_PER_SLIDE = 18  # soft cap -- a page only ends right after a process
+                          # subtotal/grand-total row, never mid-process.
+
+
+def _rgb(hex_color: str):
+    return RGBColor.from_string(hex_color)
+
+
+def _find_slide_by_title(prs, title_text: str):
+    for slide in prs.slides:
+        for shape in slide.placeholders:
+            if shape.placeholder_format.idx == 0 and shape.has_text_frame:
+                if shape.text_frame.text.strip().lower() == title_text.lower():
+                    return slide
+    return None
+
+
+def _remove_shape(shape) -> None:
+    shape._element.getparent().remove(shape._element)
+
+
+def _move_slide_to(prs, slide, new_index: int) -> None:
+    xml_slides = prs.slides._sldIdLst
+    slides = list(xml_slides)
+    old_index = list(prs.slides).index(slide)
+    xml_slides.remove(slides[old_index])
+    xml_slides.insert(new_index, slides[old_index])
+
+
+def _add_kpi_tile(slide, left, top, width, height, label: str, value, color_hex: str):
+    box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, width, height)
+    box.fill.solid()
+    box.fill.fore_color.rgb = _rgb("FFFFFF")
+    box.line.color.rgb = _rgb("D0D0D0")
+    box.line.width = Pt(0.75)
+    box.shadow.inherit = False
+
+    tf = box.text_frame
+    tf.word_wrap = True
+    tf.margin_left = tf.margin_right = Emu(45720)
+    tf.margin_top = tf.margin_bottom = Emu(22860)
+
+    p0 = tf.paragraphs[0]
+    p0.alignment = PP_ALIGN.CENTER
+    r0 = p0.add_run()
+    r0.text = label
+    r0.font.size = Pt(10)
+    r0.font.bold = True
+    r0.font.color.rgb = _rgb("616161")
+
+    p1 = tf.add_paragraph()
+    p1.alignment = PP_ALIGN.CENTER
+    r1 = p1.add_run()
+    r1.text = str(value)
+    r1.font.size = Pt(18)
+    r1.font.bold = True
+    r1.font.color.rgb = _rgb(color_hex)
+    return box
+
+
+def _style_pptx_pie(chart, bucket_order: list[str]):
+    chart.has_title = True
+    chart.chart_title.text_frame.text = "Overall status"
+    chart.has_legend = True
+    chart.legend.position = XL_LEGEND_POSITION.BOTTOM
+    chart.legend.include_in_layout = False
+    chart.legend.font.size = Pt(10)
+    plot = chart.plots[0]
+    plot.has_data_labels = True
+    dl = plot.data_labels
+    dl.show_percentage = True
+    dl.show_value = False
+    dl.show_category_name = False
+    dl.number_format = "0%"
+    dl.number_format_is_linked = False
+    series = plot.series[0]
+    for i, bucket in enumerate(bucket_order):
+        point = series.points[i]
+        point.format.fill.solid()
+        point.format.fill.fore_color.rgb = _rgb(BUCKET_COLORS[bucket])
+
+
+def _style_pptx_bar(chart, bucket_order: list[str]):
+    chart.has_title = True
+    chart.chart_title.text_frame.text = "Test status by process"
+    chart.has_legend = True
+    chart.legend.position = XL_LEGEND_POSITION.BOTTOM
+    chart.legend.include_in_layout = False
+    chart.legend.font.size = Pt(10)
+    chart.category_axis.tick_labels.font.size = Pt(7)
+    chart.value_axis.tick_labels.font.size = Pt(8)
+    for series, bucket in zip(chart.plots[0].series, bucket_order):
+        series.format.fill.solid()
+        series.format.fill.fore_color.rgb = _rgb(BUCKET_COLORS[bucket])
+
+
+def build_pptx_overview_slide(slide, overall, by_process, source_path: Path) -> None:
+    """Fill the template's existing empty 'Testing report' slide with the
+    same KPI strip + pie + by-process bar chart as the Excel Dashboard sheet.
+    """
+    content = None
+    for shape in list(slide.placeholders):
+        if shape.placeholder_format.idx != 0:  # keep the title placeholder
+            content = (shape.left, shape.top, shape.width, shape.height)
+            _remove_shape(shape)
+    if content is None:
+        content = (Emu(772786), Emu(1389737), Emu(9389857), Emu(4816022))
+    left, top, width, height = content
+
+    # Small source/generated-at caption under the title.
+    cap = slide.shapes.add_textbox(left, top, width, Emu(250000))
+    cap.text_frame.text = (f"Source: {source_path.name}    |    "
+                            f"Generated: {datetime.now():%Y-%m-%d %H:%M}")
+    cap.text_frame.paragraphs[0].font.size = Pt(10)
+    cap.text_frame.paragraphs[0].font.italic = True
+    cap.text_frame.paragraphs[0].font.color.rgb = _rgb("616161")
+
+    # ---- KPI strip -----------------------------------------------------
+    kpi_top = top + Emu(300000)
+    kpi_height = Emu(950000)
+    total = _total(overall)
+    executed = total - overall["Not started"]
+    kpis = [
+        ("Total test cases", total, "424242"),
+        ("Executed so far", f"{executed} ({executed / total:.0%})" if total else "0", "1565C0"),
+        ("Passed", overall["Passed"], BUCKET_COLORS["Passed"]),
+        ("Failed", overall["Failed"] + overall["Error"], BUCKET_COLORS["Failed"]),
+        ("Not started", overall["Not started"], BUCKET_COLORS["Not started"]),
+        ("Pass rate (executed)", f"{_pass_rate(overall):.0%}", "1565C0"),
+    ]
+    gap = Emu(45720)
+    tile_w = Emu(int((width - gap * (len(kpis) - 1)) / len(kpis)))
+    x = left
+    for label, value, color in kpis:
+        _add_kpi_tile(slide, x, kpi_top, tile_w, kpi_height, label, value, color)
+        x += tile_w + gap
+
+    # ---- Charts row (pie left, stacked bar right) -----------------------
+    charts_top = kpi_top + kpi_height + Emu(180000)
+    charts_height = top + height - charts_top
+    chart_gap = Emu(180000)
+    chart_w = Emu(int((width - chart_gap) / 2))
+
+    pie_data = CategoryChartData()
+    pie_data.categories = BUCKET_ORDER
+    pie_data.add_series("Overall status", [overall[b] for b in BUCKET_ORDER])
+    pie_frame = slide.shapes.add_chart(
+        XL_CHART_TYPE.PIE, left, charts_top, chart_w, charts_height, pie_data)
+    _style_pptx_pie(pie_frame.chart, BUCKET_ORDER)
+
+    processes = sorted(by_process.keys())
+    bar_data = CategoryChartData()
+    bar_data.categories = processes
+    for bucket in BUCKET_ORDER:
+        bar_data.add_series(bucket, [by_process[p][bucket] for p in processes])
+    bar_frame = slide.shapes.add_chart(
+        XL_CHART_TYPE.COLUMN_STACKED, left + chart_w + chart_gap, charts_top,
+        chart_w, charts_height, bar_data)
+    _style_pptx_bar(bar_frame.chart, BUCKET_ORDER)
+
+
+def _pptx_summary_rows(by_process_sub) -> list[dict]:
+    """Same process/subprocess grouping + subtotal ordering as the Excel 'By
+    Process & Subprocess' sheet (see build_process_summary_sheet), kept as
+    its own copy here rather than a shared refactor so the already-verified
+    Excel sheet logic is never at risk of a regression from this addition.
+    """
+    keys = sorted(by_process_sub.keys())
+    rows: list[dict] = []
+    current_process = None
+    grand = {b: 0 for b in BUCKET_ORDER}
+
+    def _proc_counts(process):
+        return {b: sum(by_process_sub[(p, sp)][b] for (p, sp) in keys if p == process)
+                for b in BUCKET_ORDER}
+
+    for process, subprocess in keys:
+        if current_process is not None and process != current_process:
+            rows.append({"kind": "subtotal", "process": f"{current_process} — Total",
+                         "subprocess": "", "counts": _proc_counts(current_process)})
+        current_process = process
+        counts = by_process_sub[(process, subprocess)]
+        for b in BUCKET_ORDER:
+            grand[b] += counts[b]
+        rows.append({"kind": "data", "process": process, "subprocess": subprocess,
+                     "counts": counts})
+
+    if current_process is not None:
+        rows.append({"kind": "subtotal", "process": f"{current_process} — Total",
+                     "subprocess": "", "counts": _proc_counts(current_process)})
+
+    rows.append({"kind": "grand", "process": "GRAND TOTAL", "subprocess": "",
+                 "counts": grand})
+    return rows
+
+
+def _paginate_summary_rows(rows: list[dict]) -> list[list[dict]]:
+    """Split into pages, only ever cutting right after a subtotal/grand row
+    so a process's subprocess rows and its own subtotal always land on the
+    same slide."""
+    pages: list[list[dict]] = []
+    page: list[dict] = []
+    for row in rows:
+        page.append(row)
+        if row["kind"] in ("subtotal", "grand") and len(page) >= PPTX_ROWS_PER_SLIDE:
+            pages.append(page)
+            page = []
+    if page:
+        pages.append(page)
+    return pages
+
+
+_SUMMARY_HEADERS = ["Process", "Subprocess", "Total"] + BUCKET_ORDER + ["Pass rate"]
+
+
+def _add_summary_table_slide(prs, layout, rows: list[dict], page_label: str):
+    slide = prs.slides.add_slide(layout)
+    for shape in list(slide.placeholders):
+        if shape.placeholder_format.idx == 0:
+            shape.text_frame.text = f"By Process & Subprocess{page_label}"
+        else:
+            _remove_shape(shape)
+
+    n_cols = len(_SUMMARY_HEADERS)
+    n_rows = len(rows) + 1
+    left, top, width, height = Emu(457200), Emu(1389737), Emu(11277600), Emu(5000000)
+    table = slide.shapes.add_table(n_rows, n_cols, left, top, width, height).table
+
+    col_widths = [1500000, 2100000] + [900000] * (n_cols - 2)
+    scale = width / sum(col_widths)
+    for c, w in enumerate(col_widths):
+        table.columns[c].width = Emu(int(w * scale))
+
+    for c, h in enumerate(_SUMMARY_HEADERS):
+        cell = table.cell(0, c)
+        cell.text = h
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = _rgb(HEADER_FILL)
+        for p in cell.text_frame.paragraphs:
+            p.alignment = PP_ALIGN.CENTER
+            for r in p.runs:
+                r.font.size = Pt(9)
+                r.font.bold = True
+                r.font.color.rgb = _rgb(HEADER_FONT_COLOR)
+
+    for ri, row in enumerate(rows, start=1):
+        is_total = row["kind"] in ("subtotal", "grand")
+        values = [row["process"], row["subprocess"], _total(row["counts"])]
+        values += [row["counts"][b] for b in BUCKET_ORDER]
+        values.append(f"{_pass_rate(row['counts']):.0%}")
+
+        for c, val in enumerate(values):
+            cell = table.cell(ri, c)
+            cell.text = str(val)
+            bucket = BUCKET_ORDER[c - 3] if 3 <= c < 3 + len(BUCKET_ORDER) else None
+            if is_total:
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = _rgb("B0BEC5" if row["kind"] == "grand" else "ECEFF1")
+            elif bucket and row["counts"][bucket]:
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = _rgb(BUCKET_COLORS[bucket])
+            else:
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = _rgb("FFFFFF")
+            for p in cell.text_frame.paragraphs:
+                p.alignment = PP_ALIGN.CENTER if c != 0 and c != 1 else PP_ALIGN.LEFT
+                for r in p.runs:
+                    r.font.size = Pt(9)
+                    r.font.bold = is_total or (bucket is not None and row["counts"].get(bucket, 0) > 0)
+                    r.font.color.rgb = _rgb("FFFFFF") if (is_total or (bucket and row["counts"][bucket])) else _rgb("212121")
+    for r in range(n_rows):
+        table.rows[r].height = Emu(int(height / n_rows))
+    return slide
+
+
+def build_pptx_summary_slides(prs, insert_after_slide, by_process_sub) -> None:
+    """Add one or more 'By Process & Subprocess' table slides (paginated,
+    never splitting a process's subtotal from its own rows) right after the
+    overview slide, using that same slide's layout.
+    """
+    layout = insert_after_slide.slide_layout
+    rows = _pptx_summary_rows(by_process_sub)
+    pages = _paginate_summary_rows(rows)
+
+    insert_at = next(i for i, s in enumerate(prs.slides) if s is insert_after_slide) + 1
+    for i, page_rows in enumerate(pages, start=1):
+        label = f"  ({i}/{len(pages)})" if len(pages) > 1 else ""
+        new_slide = _add_summary_table_slide(prs, layout, page_rows, label)
+        _move_slide_to(prs, new_slide, insert_at)
+        insert_at += 1
+
+
+def build_pptx(overall, by_process, by_process_sub, source_path: Path,
+                output_path: Path) -> bool:
+    """Build the PowerPoint deck from the template. Returns False (with a
+    printed message) if python-pptx isn't installed or the template is
+    missing -- never fatal to the Excel dashboard generation.
+    """
+    if Presentation is None:
+        print("  [pptx] python-pptx not installed -- skipping PowerPoint deck "
+              "(pip install python-pptx to enable it).")
+        return False
+    if not PPTX_TEMPLATE_PATH.exists():
+        print(f"  [pptx] Template not found at {PPTX_TEMPLATE_PATH} -- skipping "
+              f"PowerPoint deck.")
+        return False
+
+    prs = Presentation(PPTX_TEMPLATE_PATH)
+    overview_slide = _find_slide_by_title(prs, "Testing report")
+    if overview_slide is None:
+        print("  [pptx] WARNING: no slide titled 'Testing report' found in the "
+              "template -- skipping the PowerPoint deck.")
+        return False
+    build_pptx_overview_slide(overview_slide, overall, by_process, source_path)
+    build_pptx_summary_slides(prs, overview_slide, by_process_sub)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    prs.save(output_path)
+    print(f"  [pptx] PowerPoint deck written to: {output_path}")
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def generate(input_path: Path, output_path: Path) -> None:
+def generate(input_path: Path, output_path: Path,
+             pptx_output_path: Path | None = None, skip_pptx: bool = False) -> None:
     rows = load_rows(input_path)
     if not rows:
         raise RuntimeError(f"No test-case rows found in {input_path}")
@@ -499,6 +841,11 @@ def generate(input_path: Path, output_path: Path) -> None:
         print(f"    {b:<14}: {overall[b]}")
     print(f"  Pass rate (executed) : {_pass_rate(overall):.0%}\n")
 
+    if not skip_pptx:
+        if pptx_output_path is None:
+            pptx_output_path = PPTX_DIR / f"{output_path.stem}.pptx"
+        build_pptx(overall, by_process, by_process_sub, input_path, pptx_output_path)
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -510,6 +857,13 @@ def main():
     parser.add_argument("--output", default=None, metavar="PATH",
                          help="Where to write the dashboard. Default: a timestamped "
                               "file under Dashboards/.")
+    parser.add_argument("--pptx-output", default=None, metavar="PATH",
+                         help="Where to write the PowerPoint deck. Default: a file "
+                              "under Dashboards/PowerPoint/ with the same name/stamp "
+                              "as the Excel dashboard.")
+    parser.add_argument("--skip-pptx", action="store_true",
+                         help="Don't generate the PowerPoint deck, only the Excel "
+                              "dashboard.")
     args = parser.parse_args()
 
     input_path = Path(args.input) if args.input else _pick_default_input()
@@ -523,7 +877,8 @@ def main():
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         output_path = DASHBOARDS_DIR / f"UAT_Dashboard_{stamp}.xlsx"
 
-    generate(input_path, output_path)
+    pptx_output_path = Path(args.pptx_output) if args.pptx_output else None
+    generate(input_path, output_path, pptx_output_path, args.skip_pptx)
 
 
 if __name__ == "__main__":
