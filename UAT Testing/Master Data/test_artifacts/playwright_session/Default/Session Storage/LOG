@@ -1,3 +1,6 @@
-2026/06/24-11:59:09.847 426c Reusing MANIFEST C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\Master Data\test_artifacts\playwright_session\Default\Session Storage/MANIFEST-000001
-2026/06/24-11:59:09.870 426c Recovering log #11
-2026/06/24-11:59:09.882 426c Reusing old log C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\Master Data\test_artifacts\playwright_session\Default\Session Storage/000011.log 
+2026/09/10-17:13:45.593 1a80 Reusing MANIFEST C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\UAT Testing\Master Data\test_artifacts\playwright_session\Default\Session Storage/MANIFEST-000001
+2026/09/10-17:13:45.615 1a80 Recovering log #11
+2026/09/10-17:13:45.624 1a80 Reusing old log C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\UAT Testing\Master Data\test_artifacts\playwright_session\Default\Session Storage/000011.log 
+2026/09/10-17:14:46.038 11b20 Level-0 table #14: started
+2026/09/10-17:14:46.047 11b20 Level-0 table #14: 36851 bytes OK
+2026/09/10-17:14:46.050 11b20 Delete type=0 #11

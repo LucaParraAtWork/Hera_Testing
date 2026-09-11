@@ -1,0 +1,4 @@
+n,id,group,excel_id,name,expect,result,notes,desc
+1,UI_01,view,Nom_YN_05,Access/view uploaded yearly nomination,PASS,PASS,,"Select offtaker + year, click Validate Year, open View History, select a version. Assert the captured API response has a non-null current version and non-empty version history / breakdowns. Note whether a download/export control exists (informational only — Excel says 'if available')."
+2,UI_02,chart,Nom_YN_07,Yearly chart view,PASS,PASS,,"Select offtaker + year, click the 'chart' tab. Assert a chart element actually renders (non-zero bounding box), and cross-check the captured monthlyBreakdowns/weeklyBreakdowns against the imported CSV values."
+3,UI_03,edit,Nom_YN_06,Edit history breakdown and submit new version,PASS,PASS,,"Open View History, select the current version, reduce Jan and W01 by 2, Submit new version, reopen View History. Assert: new version number = old + 1, new entry status = 'New', previous version still listed."

@@ -1,0 +1,4 @@
+id,file,expect,result,match,notes,screenshot,desc
+Nom_WN_01/08,Virya_Nomination_Week38.csv,PASS,PASS,True,,C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\UAT Testing\Weekly Nomination\test_artifacts\20260910-152454\01_Nom_WN_01_08\05_grid_after_import.png,"Happy path – Virya Week 38 (first import, baseline check)"
+Nom_WN_03,Messer_Nomination_Week38.csv,PASS,PASS,True,,C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\UAT Testing\Weekly Nomination\test_artifacts\20260910-152454\02_Nom_WN_03\05_grid_after_import.png,Happy path – Messer Week 38
+Nom_WN_04,Virya_Nomination_Week38_V2.csv,PASS,FAIL,False,There exists only one trailer type,C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\UAT Testing\Weekly Nomination\test_artifacts\20260910-152454\03_Nom_WN_04\05_grid_after_import.png,Overwrite – type 2 trailer on slots 7 / 15 / 35 (V2)

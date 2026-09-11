@@ -1,7 +1,14 @@
-2026/06/22-11:52:49.584 5d20 Reusing MANIFEST C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\Weekly Nomination\test_artifacts\playwright_session\Default\Session Storage/MANIFEST-000001
-2026/06/22-11:52:49.585 5d20 Recovering log #3
-2026/06/22-11:52:49.585 5d20 Level-0 table #3: started
-2026/06/22-11:52:49.596 5d20 Level-0 table #3: 39060 bytes OK
-2026/06/22-11:52:49.596 5d20 Recovering log #4
-2026/06/22-11:52:49.597 5d20 Reusing old log C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\Weekly Nomination\test_artifacts\playwright_session\Default\Session Storage/000004.log 
-2026/06/22-11:52:49.599 5d20 Delete type=0 #3
+2026/09/10-15:39:45.074 f7b8 Reusing MANIFEST C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\UAT Testing\Weekly Nomination\test_artifacts\playwright_session\Default\Session Storage/MANIFEST-000001
+2026/09/10-15:39:45.077 f7b8 Recovering log #9
+2026/09/10-15:39:45.084 f7b8 Reusing old log C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\UAT Testing\Weekly Nomination\test_artifacts\playwright_session\Default\Session Storage/000009.log 
+2026/09/10-15:47:45.222 f7b8 Level-0 table #13: started
+2026/09/10-15:47:45.243 f7b8 Level-0 table #13: 37598 bytes OK
+2026/09/10-15:47:45.247 f7b8 Delete type=0 #9
+2026/09/10-15:47:45.250 f7b8 Compacting 4@0 + 0@1 files
+2026/09/10-15:47:45.262 f7b8 Generated table #14@0: 15 keys, 16167 bytes
+2026/09/10-15:47:45.263 f7b8 Compacted 4@0 + 0@1 files => 16167 bytes
+2026/09/10-15:47:45.264 f7b8 compacted to: files[ 0 1 0 0 0 0 0 ]
+2026/09/10-15:47:45.265 f7b8 Delete type=2 #3
+2026/09/10-15:47:45.265 f7b8 Delete type=2 #7
+2026/09/10-15:47:45.265 f7b8 Delete type=2 #10
+2026/09/10-15:47:45.265 f7b8 Delete type=2 #13

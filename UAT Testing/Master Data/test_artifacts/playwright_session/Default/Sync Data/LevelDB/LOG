@@ -1,3 +1,3 @@
-2026/06/24-11:59:09.453 15a0 Reusing MANIFEST C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\Master Data\test_artifacts\playwright_session\Default\Sync Data\LevelDB/MANIFEST-000001
-2026/06/24-11:59:09.457 15a0 Recovering log #3
-2026/06/24-11:59:09.459 15a0 Reusing old log C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\Master Data\test_artifacts\playwright_session\Default\Sync Data\LevelDB/000003.log 
+2026/09/10-17:13:45.242 ec18 Reusing MANIFEST C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\UAT Testing\Master Data\test_artifacts\playwright_session\Default\Sync Data\LevelDB/MANIFEST-000001
+2026/09/10-17:13:45.248 ec18 Recovering log #3
+2026/09/10-17:13:45.249 ec18 Reusing old log C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\UAT Testing\Master Data\test_artifacts\playwright_session\Default\Sync Data\LevelDB/000003.log 

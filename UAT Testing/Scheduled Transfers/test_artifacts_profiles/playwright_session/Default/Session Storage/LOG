@@ -1,6 +1,3 @@
-2026/06/29-15:36:52.815 14f4 Reusing MANIFEST C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\Scheduled Transfers\test_artifacts_profiles\playwright_session\Default\Session Storage/MANIFEST-000001
-2026/06/29-15:36:52.864 14f4 Recovering log #4
-2026/06/29-15:36:52.879 14f4 Reusing old log C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\Scheduled Transfers\test_artifacts_profiles\playwright_session\Default\Session Storage/000004.log 
-2026/06/29-15:37:53.441 14f4 Level-0 table #8: started
-2026/06/29-15:37:53.447 14f4 Level-0 table #8: 35535 bytes OK
-2026/06/29-15:37:53.449 14f4 Delete type=0 #4
+2026/09/10-17:21:07.329 10114 Reusing MANIFEST C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\UAT Testing\Scheduled Transfers\test_artifacts_profiles\playwright_session\Default\Session Storage/MANIFEST-000001
+2026/09/10-17:21:07.353 10114 Recovering log #7
+2026/09/10-17:21:07.361 10114 Reusing old log C:\Users\LucaParraGabarron\Desktop\ViryaH2\Hera_Testing\UAT Testing\Scheduled Transfers\test_artifacts_profiles\playwright_session\Default\Session Storage/000007.log 
