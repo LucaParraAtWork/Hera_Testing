@@ -195,7 +195,7 @@ from playwright.sync_api import sync_playwright
 from _weekly_csv_sync import ensure_next_week
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from uat_excel_reporter import record_results
+from uat_excel_reporter import record_results, print_test_case_info
 
 # This script's own scenario ids ("UI_06", "AN_02", "SETUP_01", ...) don't match
 # the Excel's "Test case ID" column directly — map each to the real Excel id(s).
@@ -552,6 +552,9 @@ def _detect(page, modal=None) -> tuple[str, str]:
 # User prompt
 # --------------------------------------------------------------------------
 def _ask(scenario: dict, auto: str, reason: str) -> tuple[str, str]:
+    excel_ids = _excel_ids_for(scenario["id"])
+    if excel_ids:
+        print_test_case_info(excel_ids[0])
     label  = ("[expected PASS]" if scenario["expect"] == "PASS" else
                "[expected FAIL]" if scenario["expect"] == "FAIL" else "[observe]")
     aflag  = {"PASS": "AUTO-PASS", "FAIL": "AUTO-FAIL"}.get(auto, f"AUTO-{auto}")
@@ -1636,7 +1639,7 @@ def _add_slot_ui(page, nominations_url, shots_dir):
 # Main
 # ==========================================================================
 def main():
-    global TARGET_WEEK, TARGET_YEAR
+    global TARGET_WEEK, TARGET_YEAR, WEEK35_CSV, WEEK36_CSV
 
     parser = argparse.ArgumentParser(description="Hera Weekly Nomination UI Interaction Tests")
     parser.add_argument(
@@ -1647,10 +1650,34 @@ def main():
     args, _ = parser.parse_known_args()
 
     # Before anything else: make sure the CSV family targets next week, not
-    # whatever week it was last generated for.
+    # whatever week it was last generated for. This also renames every file
+    # so its filename always carries the real week number of its content.
     print("  Checking weekly nomination CSVs are dated for next week…")
-    TARGET_WEEK, TARGET_YEAR = ensure_next_week()
-    _ensure_week36_csvs()  # regenerate Week36 from Week35 if it's missing entirely
+    base_week, base_year, next_week, next_year = ensure_next_week()
+    WEEK35_CSV = HERE / f"Virya_Nomination_Week{base_week}.csv"
+    WEEK36_CSV = HERE / f"Virya_Nomination_Week{next_week}.csv"
+    _ensure_week36_csvs()  # safety net: regenerate the "+1 week" fixture if it's missing entirely
+
+    # This whole script's baseline import (SETUP_01/02) lands its slots on
+    # the "+1" week (WEEK36_CSV), not the same week test_weekly_import.py
+    # targets — so every _goto_week_year(page, TARGET_WEEK, TARGET_YEAR)
+    # call below must navigate to that same "+1" week too, or the script
+    # ends up viewing/confirming/rejecting an empty or stale different week.
+    TARGET_WEEK, TARGET_YEAR = next_week, next_year
+
+    # SCENARIOS was built at import time with the previous "base+1" week
+    # baked into cosmetic "name"/"desc" text ("Week 36") — patch it so the
+    # printed text matches the real week this run actually targets.
+    def _renumber(text: str, new_week: int) -> str:
+        text = re.sub(r"Week(\d+)\.csv", f"Week{new_week}.csv", text)
+        text = re.sub(r"Week (\d+)", f"Week {new_week}", text)
+        return text
+
+    for sc in SCENARIOS:
+        if "name" in sc:
+            sc["name"] = _renumber(sc["name"], next_week)
+        if "desc" in sc:
+            sc["desc"] = _renumber(sc["desc"], next_week)
 
     _SESSION.clear()   # ensure no stale state from a previous run in the same process
 

@@ -120,7 +120,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from uat_excel_reporter import record_results
+from uat_excel_reporter import record_results, print_test_case_info
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -300,6 +300,7 @@ def _week_monday(week: int, year: int) -> date:
 # User prompt (same pattern as the other scripts)
 # --------------------------------------------------------------------------
 def _ask(scenario, auto, reason):
+    print_test_case_info(scenario["id"])
     label    = "[expected PASS]" if scenario["expect"] == "PASS" else "[observe]"
     aflag    = {"PASS": "AUTO-PASS", "FAIL": "AUTO-FAIL"}.get(auto, f"AUTO-{auto}")
     mismatch = (scenario["expect"] not in ("?",) and auto not in ("?",) and auto != scenario["expect"])

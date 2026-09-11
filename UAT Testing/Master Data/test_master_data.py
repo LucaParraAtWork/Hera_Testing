@@ -35,7 +35,7 @@ ENVIRONMENTS = {
 # =============================================================================
 # RESUME – set to N to skip scenarios 1 .. N-1
 # =============================================================================
-START_FROM = 28
+START_FROM = 1
 
 # =============================================================================
 # TEST CASES
@@ -103,7 +103,7 @@ from datetime import datetime
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from uat_excel_reporter import record_results
+from uat_excel_reporter import record_results, print_test_case_info
 
 HERE = Path(__file__).parent
 
@@ -323,6 +323,7 @@ def _reopen_and_check(page, shots_dir, row_text: str, step: str, check_fn) -> tu
 
 def _ask(tc_id: str, desc: str, expect: str,
          auto: str = "?", reason: str = "") -> tuple[str, str]:
+    print_test_case_info(tc_id)
     label = {"PASS": "[expected PASS]", "FAIL": "[expected FAIL]",
              "?":    "[outcome unknown]"}.get(expect, "")
     auto_label = {"PASS": "AUTO-PASS", "FAIL": "AUTO-FAIL",

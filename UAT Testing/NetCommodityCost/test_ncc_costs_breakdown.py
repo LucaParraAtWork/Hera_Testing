@@ -119,7 +119,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from uat_excel_reporter import record_results
+from uat_excel_reporter import record_results, print_test_case_info
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(line_buffering=True)
@@ -1322,6 +1322,7 @@ def _test_ncc_calc_vs_api(
 # ASK + SUMMARY
 # ==============================================================================
 def _ask(scenario: dict, auto: str, reason: str) -> tuple[str, str]:
+    print_test_case_info(scenario["id"])
     label    = "[expected PASS]" if scenario["expect"] == "PASS" else "[observe]"
     aflag    = {"PASS": "AUTO-PASS", "FAIL": "AUTO-FAIL"}.get(auto, f"AUTO-{auto}")
     mismatch = scenario["expect"] != "?" and auto != scenario["expect"]

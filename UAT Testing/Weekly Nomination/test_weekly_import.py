@@ -154,12 +154,24 @@ SLOWMO  = 0     # Playwright action delay in ms (0 = full speed; 200 = visible)
 # ===========================================================================
 import argparse, re, sys, time, csv as _csv
 from pathlib import Path
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 from _weekly_csv_sync import ensure_next_week
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from uat_excel_reporter import record_results
+from uat_excel_reporter import record_results, print_test_case_info
+
+# This script's own TEST_CASES ids don't always match the Excel's "Test case
+# ID" column directly: "NEG_03" etc. are missing the "Nom_WN_" prefix, and
+# "Nom_WN_01/08" is one scenario that covers TWO separate Excel rows at once.
+def _excel_ids_for(tc_id: str) -> list[str]:
+    if "/" in tc_id:
+        first, _, second_num = tc_id.partition("/")
+        prefix = first.rsplit("_", 1)[0]
+        return [first, f"{prefix}_{second_num}"]
+    if tc_id.startswith("NEG_"):
+        return [f"Nom_WN_{tc_id}"]
+    return [tc_id]
 
 
 HERE = Path(__file__).parent  # folder containing this script and all CSVs
@@ -406,6 +418,8 @@ def _detect_success_toast_only(page, modal) -> tuple[str, str]:
 def _ask(tc_id: str, desc: str, expect: str,
          auto: str = "?", reason: str = "") -> tuple[str, str]:
     """Show auto-detected result; let the user confirm or override."""
+    for excel_id in _excel_ids_for(tc_id):
+        print_test_case_info(excel_id)
     label = {"PASS": "[expected PASS]", "FAIL": "[expected FAIL]",
              "?":    "[outcome unknown]"}.get(expect, "")
     auto_label = {"PASS": "AUTO-PASS", "FAIL": "AUTO-FAIL", "?": "AUTO-?"}.get(auto, auto)
@@ -444,6 +458,50 @@ def _wait_for_login(page, base_url: str):
     raise RuntimeError("Login timed out (5 min)")
 
 
+def _wait_for_auth_settle(page, timeout_s=15, stable_checks=3, stable_interval=0.5):
+    """MSAL's client-side redirect from the /auth#code=... callback to the
+    app URL can still be in flight right when the user confirms login in
+    the terminal — racing our own page.goto() then throws 'interrupted by
+    another navigation'. A single clean-URL check isn't reliable: the
+    browser can be between navigations (e.g. briefly on about:blank or the
+    login page) and look "settled" an instant before Entra actually
+    redirects to /auth#code=..., so this requires the URL to look clean for
+    several consecutive checks in a row, not just once."""
+    deadline = time.time() + timeout_s
+    consecutive_clean = 0
+    while time.time() < deadline:
+        try:
+            url = page.url
+        except Exception:
+            url = ""
+        if "/auth" not in url and "#code=" not in url:
+            consecutive_clean += 1
+            if consecutive_clean >= stable_checks:
+                return
+        else:
+            consecutive_clean = 0
+        time.sleep(stable_interval)
+
+
+def _goto_nominations(page, nominations_url, retries=4):
+    """page.goto(nominations_url) can race an in-flight MSAL auth redirect —
+    not just right after login, but any time a scenario ends up being the
+    first navigation of the run. Retry a few times with a short wait instead
+    of letting the whole scenario error out on 'interrupted by another
+    navigation'."""
+    last_exc = None
+    for _ in range(retries):
+        try:
+            page.goto(nominations_url, wait_until="domcontentloaded")
+            return
+        except Exception as e:
+            last_exc = e
+            if "interrupted by another navigation" not in str(e):
+                raise
+            time.sleep(1.5)
+    raise last_exc
+
+
 def _import_csv(page, nominations_url: str, csv_path: Path,
                 shots_dir: Path, tc_id: str,
                 target_week: int = TARGET_WEEK, target_year: int = TARGET_YEAR,
@@ -459,7 +517,7 @@ def _import_csv(page, nominations_url: str, csv_path: Path,
     offtaker = _derive_offtaker(csv_path.name)
 
     # Navigate
-    page.goto(nominations_url, wait_until="domcontentloaded")
+    _goto_nominations(page, nominations_url)
     _wait_m(); _ui_quiet(page)
     page.screenshot(path=str(shots_dir / "01_landing.png"))
 
@@ -542,9 +600,23 @@ def main():
     args, _ = parser.parse_known_args()
 
     # Before anything else: make sure the CSV family targets next week, not
-    # whatever week it was last generated for.
+    # whatever week it was last generated for. This also renames every file
+    # so its filename always carries the real week number of its content.
     print("  Checking weekly nomination CSVs are dated for next week…")
-    TARGET_WEEK, TARGET_YEAR = ensure_next_week()
+    TARGET_WEEK, TARGET_YEAR, _next_week, _next_year = ensure_next_week()
+
+    # TEST_CASES was built at import time with the previous week's filenames
+    # baked in ("Week35") — patch every "file"/"desc" reference so both match
+    # whatever ensure_next_week() just renamed the files to. Cases with an
+    # explicit "week" key (e.g. Nom_WN_05's fixed past Week 26) target a
+    # week that never rolls forward, so they're left untouched.
+    for tc in TEST_CASES:
+        if "week" in tc:
+            continue
+        if "file" in tc:
+            tc["file"] = re.sub(r"Week\d+", f"Week{TARGET_WEEK}", tc["file"])
+        if "desc" in tc:
+            tc["desc"] = re.sub(r"Week \d+", f"Week {TARGET_WEEK}", tc["desc"])
 
     env_name, base_url = _resolve_env()
     nominations_url = f"{base_url}/nominations/weekly"
@@ -556,9 +628,13 @@ def main():
 
     results: list[dict] = []
 
+    target_monday = date.fromisocalendar(TARGET_YEAR, TARGET_WEEK, 1)
+    target_sunday = target_monday + timedelta(days=6)
     print(f"\n{'='*60}")
     print(f"  Hera Weekly Import Test Suite")
     print(f"  Environment : {env_name}  ({base_url})")
+    print(f"  Target week : {TARGET_WEEK}/{TARGET_YEAR}  "
+          f"({target_monday:%b %d} - {target_sunday:%b %d %Y})")
     print(f"  Run ID      : {run_id}")
     print(f"  Test cases  : {len(TEST_CASES)}")
     print(f"{'='*60}\n")
@@ -589,6 +665,7 @@ def main():
         print("  │  Press Enter here once you see the Hera app.        │")
         print("  └─────────────────────────────────────────────────────┘")
         input("  > ")
+        _wait_for_auth_settle(page)
         _ui_quiet(page)
         print("  Authentication confirmed. Starting test loop.\n")
 
@@ -667,12 +744,17 @@ def main():
         w = _csv.DictWriter(f, fieldnames=["id","file","expect","result","match","notes","screenshot","desc"])
         w.writeheader()
         for r in results:
-            w.writerow({**r, "match": r["expect"] == "?" or r["result"] == r["expect"]})
+            row = {**r, "match": r["expect"] == "?" or r["result"] == r["expect"]}
+            # Some TEST_CASES entries (e.g. Nom_WN_05) carry extra keys
+            # ("week", "year", "strict_no_success") not in fieldnames —
+            # DictWriter raises on unknown keys, so filter them out here.
+            w.writerow({k: row.get(k, "") for k in w.fieldnames})
     print(f"  Results saved to: {results_csv}")
     print(f"  Screenshots in : {run_dir}\n")
 
-    record_results([(r["id"], r["result"], r.get("notes", "")) for r in results],
-                    xlsx_path=args.excel, source="test_weekly_import.py")
+    excel_rows = [(excel_id, r["result"], r.get("notes", ""))
+                  for r in results for excel_id in _excel_ids_for(r["id"])]
+    record_results(excel_rows, xlsx_path=args.excel, source="test_weekly_import.py")
 
 
 if __name__ == "__main__":

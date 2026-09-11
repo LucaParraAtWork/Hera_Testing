@@ -100,7 +100,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from uat_excel_reporter import record_results
+from uat_excel_reporter import record_results, print_test_case_info
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -160,6 +160,19 @@ def _open_modal(page):
     m.wait_for(state="visible", timeout=10_000)
     _ws()
     return m
+
+def _wait_for_capture(key: str, timeout_s: float = 8) -> bool:
+    """Poll _CAPTURED for `key` instead of checking once immediately —
+    GetYearlyNominationScreenAsync can still be in flight right after a
+    click that opens a modal, especially right after a 'Submit new version'
+    that's already keeping the backend busy."""
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        if key in _CAPTURED:
+            return True
+        time.sleep(0.3)
+    return key in _CAPTURED
+
 
 def _close_modal(page, modal):
     try:
@@ -254,6 +267,8 @@ def _parse_yearly_csv(path: Path):
 # User prompt (same pattern as the other scripts)
 # --------------------------------------------------------------------------
 def _ask(scenario, auto, reason):
+    if scenario.get("excel_id"):
+        print_test_case_info(scenario["excel_id"])
     label    = "[expected PASS]" if scenario["expect"] == "PASS" else "[observe]"
     aflag    = {"PASS": "AUTO-PASS", "FAIL": "AUTO-FAIL"}.get(auto, f"AUTO-{auto}")
     mismatch = (scenario["expect"] not in ("?",) and auto not in ("?",) and auto != scenario["expect"])
@@ -397,7 +412,14 @@ def _do_chart_view(page, yearly_url, shots_dir):
         page.screenshot(path=str(shots_dir / "01_before_chart.png"), full_page=True)
 
         try:
-            chart_tab = page.locator("button", has_text=re.compile(r"^chart$", re.I)).first
+            # DOM (confirmed live via DevTools): <app-toggle class="view-toggle">
+            # holds two buttons, "Grid" (button-secondary) and "Chart"
+            # (button-primary) — the button's own text has surrounding
+            # whitespace (" Chart "), which broke the old anchored regex
+            # "^chart$" (regex text-matching in Playwright doesn't trim
+            # whitespace the way plain-string matching does). Scope to the
+            # toggle and use a plain substring match instead.
+            chart_tab = page.locator("app-toggle.view-toggle button", has_text="Chart").first
             _safe_click(page, chart_tab, "Chart tab")
         except Exception as e:
             return "FAIL", f"'chart' tab button not found: {e}"
@@ -537,6 +559,7 @@ def _do_edit_submit(page, yearly_url, shots_dir):
             return "FAIL", f"View History did not open: {e}"
         page.screenshot(path=str(shots_dir / "01_history_before.png"))
 
+        _wait_for_capture("yn_edit", timeout_s=8)
         if "yn_edit" not in _CAPTURED:
             _close_modal(page, modal)
             return "FAIL", "GetYearlyNominationScreenAsync was never captured (baseline)"
@@ -588,6 +611,7 @@ def _do_edit_submit(page, yearly_url, shots_dir):
         except Exception as e:
             return "FAIL", f"View History did not reopen after submit: {e}"
         page.screenshot(path=str(shots_dir / "05_history_after.png"))
+        _wait_for_capture("yn_edit", timeout_s=8)
         _close_modal(page, modal2)
 
         if "yn_edit" not in _CAPTURED:

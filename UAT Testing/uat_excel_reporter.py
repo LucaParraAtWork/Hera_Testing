@@ -123,6 +123,52 @@ def _save_pending(rows, tester: str, source: str, xlsx_path: Path) -> None:
             w.writerow([excel_id, result, notes, tester, source, str(xlsx_path), stamp])
 
 
+def get_test_case_info(excel_id: str, template_path: Path | None = None) -> dict | None:
+    """Look up a Test case ID's authored title/steps/expected result.
+
+    Always reads the master template (never a --excel report copy) so the
+    printed steps are the canonical, up-to-date UAT wording regardless of
+    which report file this run happens to be writing results into.
+    """
+    if openpyxl is None:
+        return None
+    path = template_path or TEMPLATE_PATH
+    if not path.exists():
+        return None
+    wb = openpyxl.load_workbook(path, data_only=True)
+    hit = _build_id_index(wb).get(excel_id)
+    if hit is None:
+        return None
+    sheet_name, row = hit
+    ws = wb[sheet_name]
+
+    def _get(col_name: str):
+        col = _header_index(ws, col_name)
+        return ws.cell(row=row, column=col).value if col else None
+
+    return {
+        "title": _get("Test case title"),
+        "steps": _get("Input with test step by step"),
+        "expected": _get("Expected results"),
+    }
+
+
+def print_test_case_info(excel_id: str, template_path: Path | None = None) -> None:
+    """Print the authored title/steps/expected result for excel_id, if found."""
+    info = get_test_case_info(excel_id, template_path)
+    if not info:
+        return
+    print(f"  ┌─ UAT steps ({excel_id}) " + "─" * max(0, 40 - len(excel_id)))
+    if info.get("title"):
+        print(f"  │ {info['title']}")
+    if info.get("steps"):
+        for line in str(info["steps"]).splitlines():
+            print(f"  │ {line}")
+    if info.get("expected"):
+        print(f"  │ Expected: {info['expected']}")
+    print("  └" + "─" * 50)
+
+
 def record_results(rows, tester: str | None = None,
                     xlsx_path: str | Path | None = None,
                     source: str = "") -> list[str] | None:

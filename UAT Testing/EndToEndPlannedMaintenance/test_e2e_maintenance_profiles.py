@@ -137,7 +137,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from uat_excel_reporter import record_results
+from uat_excel_reporter import record_results, print_test_case_info
 
 HERE = Path(__file__).parent
 ROOT = HERE.parent   # UAT Testing root
@@ -744,6 +744,7 @@ def _test_loading_bay_zero(page, base_url: str, target_week: int | None,
 # CONFIRM PROMPT  (same pattern as other Hera test scripts)
 # ===========================================================================
 def _ask(scenario: dict, auto: str, reason: str) -> tuple[str, str]:
+    print_test_case_info(scenario["id"])
     label    = "[expected PASS]" if scenario["expect"] == "PASS" else "[observe]"
     aflag    = {"PASS": "AUTO-PASS", "FAIL": "AUTO-FAIL"}.get(auto, f"AUTO-{auto}")
     mismatch = scenario["expect"] not in ("?",) and auto != scenario["expect"]
