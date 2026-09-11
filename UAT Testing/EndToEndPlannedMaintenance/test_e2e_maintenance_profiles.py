@@ -137,7 +137,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from uat_excel_reporter import record_results, print_test_case_info
+from uat_excel_reporter import record_results, print_test_case_info, ask_verdict, clear_screen
 
 HERE = Path(__file__).parent
 ROOT = HERE.parent   # UAT Testing root
@@ -744,29 +744,11 @@ def _test_loading_bay_zero(page, base_url: str, target_week: int | None,
 # CONFIRM PROMPT  (same pattern as other Hera test scripts)
 # ===========================================================================
 def _ask(scenario: dict, auto: str, reason: str) -> tuple[str, str]:
-    print_test_case_info(scenario["id"])
-    label    = "[expected PASS]" if scenario["expect"] == "PASS" else "[observe]"
-    aflag    = {"PASS": "AUTO-PASS", "FAIL": "AUTO-FAIL"}.get(auto, f"AUTO-{auto}")
-    mismatch = scenario["expect"] not in ("?",) and auto != scenario["expect"]
-    flag     = " !! MISMATCH" if mismatch else " OK"
-
-    print(f"\n  {scenario['id']}  {label}  –  {scenario['name']}")
-    print(f"  Auto-detected : {aflag}{flag}")
-    if reason:
-        print(f"  Reason        : {reason}")
-    default = scenario["expect"] if scenario["expect"] in ("PASS", "FAIL") else "PASS"
-    print(f"  Confirm? (P=pass / F=fail / S=skip / I=inconclusive / Enter={default}): ", end="", flush=True)
-    try:
-        raw = input().strip().upper()
-    except EOFError:
-        raw = ""
-    result = {"P": "PASS", "F": "FAIL", "S": "SKIP", "I": "?"}.get(raw, auto if auto in ("PASS", "FAIL") else default)
-    notes  = ""
-    try:
-        notes = input("  Notes (optional): ").strip()
-    except EOFError:
-        pass
-    return result, notes
+    return ask_verdict(
+        tc_id=scenario["id"], title=scenario["name"], expect=scenario["expect"],
+        auto=auto, reason=reason, index=scenario.get("n"), total=len(SCENARIOS),
+        excel_id=scenario["id"],
+    )
 
 
 # ===========================================================================
@@ -931,6 +913,7 @@ def main():
         # ---------------------------------------------------------------
         sc1 = SCENARIOS[0]
         test1_dir = run_dir / sc1["id"]
+        clear_screen()
         print(f"\n{'═'*64}")
         print(f"  [{sc1['n']}/{len(SCENARIOS)}]  {sc1['id']}  –  {sc1['name']}")
         print(f"  Power consumption (MW)  ≤  nominal capacity (kW ÷ 1000)")
@@ -965,6 +948,7 @@ def main():
         # ---------------------------------------------------------------
         sc2 = SCENARIOS[1]
         test2_dir = run_dir / sc2["id"]
+        clear_screen()
         print(f"\n{'═'*64}")
         print(f"  [{sc2['n']}/{len(SCENARIOS)}]  {sc2['id']}  –  {sc2['name']}")
         print(f"  Truck Filling curve for {LOADING_BAY} must be 0 at every timestamp")

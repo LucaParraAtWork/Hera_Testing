@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import csv
 import getpass
+import os
 import shutil
 import sys
 from datetime import datetime
@@ -65,6 +66,33 @@ ID_COL = "Test case ID"
 TESTER_COL = "tester"
 STATUS_COL = "status"
 COMMENT_COL = "comment"
+
+# When False (default), a script's own auto-detected PASS/FAIL/etc. is shown
+# to the tester purely as a neutral observation -- it never pre-fills the
+# verdict prompt's default and Enter alone never accepts it. Flip this back
+# to True once auto-detection is trusted enough to suggest a default again;
+# every one of the 10 scripts' _ask() wrappers picks this up automatically
+# through ask_verdict(), no per-script changes needed.
+AUTO_VALIDATION_ENABLED = False
+
+_VERDICT_WIDTH = 74
+_VERDICT_KEYS = {
+    "p": "PASS", "pass": "PASS",
+    "f": "FAIL", "fail": "FAIL",
+    "s": "SKIP", "skip": "SKIP",
+    "i": "?", "inconclusive": "?",
+}
+
+
+def clear_screen() -> None:
+    """Clear the terminal so each test starts on a fresh screen.
+
+    Called at the top of each test iteration (before its pre-run banner),
+    never inside ask_verdict() itself -- that keeps the automation output
+    for the test currently running (navigation, screenshots, errors)
+    visible all the way up to the confirmation prompt for that same test.
+    """
+    os.system("cls" if os.name == "nt" else "clear")
 
 
 def _default_tester() -> str:
@@ -167,6 +195,98 @@ def print_test_case_info(excel_id: str, template_path: Path | None = None) -> No
     if info.get("expected"):
         print(f"  │ Expected: {info['expected']}")
     print("  └" + "─" * 50)
+
+
+def ask_verdict(tc_id: str, title: str | None, expect: str, *,
+                 auto: str | None = None, reason: str | None = None,
+                 index: int | None = None, total: int | None = None,
+                 excel_id: str | list[str] | None = None) -> tuple[str, str]:
+    """Print one uniform confirmation block and return (result, notes).
+
+    This is the single shared prompt every test script's own _ask() wrapper
+    delegates to, so all 10 scripts read identically in the terminal. It
+    reads AUTO_VALIDATION_ENABLED itself -- when False (default) the
+    auto-detected result is shown only as a neutral "Detected" observation
+    and never becomes the Enter-key default; when True it's shown as the
+    suggested default instead. Either way the underlying auto-detection
+    code in each script is untouched, so flipping the flag later needs no
+    changes anywhere else.
+
+    excel_id may be a single ID or a list (some scenarios are credited
+    against more than one row in the Excel) -- steps are printed for every
+    id that has a matching row.
+    """
+    excel_ids = excel_id if isinstance(excel_id, list) else [excel_id or tc_id]
+    w = _VERDICT_WIDTH
+
+    print("\n" + "=" * w)
+    if index and total:
+        print(f" TEST {index} / {total}   —   {tc_id}")
+    else:
+        print(f" {tc_id}")
+    if title:
+        print(f" {title}")
+    print("-" * w)
+
+    exp_label = expect if expect in ("PASS", "FAIL") else "UNKNOWN / TBD"
+    print(f" Expected result : {exp_label}")
+
+    print(" Steps           :")
+    found_any = False
+    for eid in excel_ids:
+        if get_test_case_info(eid):
+            print_test_case_info(eid)
+            found_any = True
+    if not found_any:
+        print("   (no matching row found in the Excel for this ID -- steps not shown)")
+
+    default = None
+    if auto is not None:
+        detected_label = auto if auto in ("PASS", "FAIL", "SKIP") else "?"
+        detail = f" -- {reason}" if reason else ""
+        print(f" Detected        : {detected_label}{detail}")
+        if AUTO_VALIDATION_ENABLED:
+            print("                    (auto-validation ON -- shown as the suggested default)")
+            if auto in ("PASS", "FAIL"):
+                default = auto
+        else:
+            print("                    (auto-validation OFF -- this is an observation only,")
+            print("                     not a suggested verdict)")
+    print("-" * w)
+
+    if default:
+        prompt = f" >>> YOUR VERDICT (P=Pass / F=Fail / S=Skip / I=Inconclusive / Enter={default}): "
+    else:
+        prompt = " >>> YOUR VERDICT (P=Pass / F=Fail / S=Skip / I=Inconclusive): "
+
+    result = None
+    notes = ""
+    while result is None:
+        try:
+            raw = input(prompt).strip().lower()
+        except EOFError:
+            result = "?"
+            notes = "Auto-recorded as Inconclusive: no interactive input available (EOF)."
+            print(f"\n {notes}")
+            break
+        if not raw and default:
+            result = default
+        elif raw in _VERDICT_KEYS:
+            result = _VERDICT_KEYS[raw]
+        else:
+            hint = " (or press Enter to accept the default)" if default else ""
+            print(f"     Please enter P, F, S, or I{hint}.")
+
+    if not notes:
+        try:
+            notes = input("     Notes (optional): ").strip()
+        except EOFError:
+            notes = notes or ""
+
+    print("=" * w)
+    print(f" -> Recorded: {result}" + (f"   ({notes})" if notes else ""))
+    print("=" * w)
+    return result, notes
 
 
 def record_results(rows, tester: str | None = None,

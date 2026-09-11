@@ -159,7 +159,7 @@ from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeo
 from _weekly_csv_sync import ensure_next_week
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from uat_excel_reporter import record_results, print_test_case_info
+from uat_excel_reporter import record_results, print_test_case_info, ask_verdict, clear_screen
 
 # This script's own TEST_CASES ids don't always match the Excel's "Test case
 # ID" column directly: "NEG_03" etc. are missing the "Nom_WN_" prefix, and
@@ -416,32 +416,13 @@ def _detect_success_toast_only(page, modal) -> tuple[str, str]:
 
 
 def _ask(tc_id: str, desc: str, expect: str,
-         auto: str = "?", reason: str = "") -> tuple[str, str]:
+         auto: str = "?", reason: str = "",
+         index: int | None = None, total: int | None = None) -> tuple[str, str]:
     """Show auto-detected result; let the user confirm or override."""
-    for excel_id in _excel_ids_for(tc_id):
-        print_test_case_info(excel_id)
-    label = {"PASS": "[expected PASS]", "FAIL": "[expected FAIL]",
-             "?":    "[outcome unknown]"}.get(expect, "")
-    auto_label = {"PASS": "AUTO-PASS", "FAIL": "AUTO-FAIL", "?": "AUTO-?"}.get(auto, auto)
-    match_flag = "" if expect == "?" else (" OK" if auto == expect else " !! MISMATCH")
-
-    print(f"\n  {tc_id} {label}  –  {desc}")
-    print(f"  Auto-detected : {auto_label}{match_flag}")
-    if reason:
-        print(f"  Reason        : {reason}")
-
-    default = auto if auto in ("PASS", "FAIL") else "PASS"
-    try:
-        raw = input(f"  Confirm? (P=pass / F=fail / S=skip / I=inconclusive / Enter={default}): ").strip().lower()
-        result = ("FAIL" if raw in ("f", "fail", "n", "no")
-                  else "PASS" if raw in ("p", "pass", "y", "yes", "o", "oui")
-                  else "SKIP" if raw in ("s", "skip")
-                  else "?" if raw in ("i", "inconclusive")
-                  else default)
-        notes = input("  Notes (optional): ").strip()
-        return result, notes
-    except EOFError:
-        return default, reason
+    return ask_verdict(
+        tc_id=tc_id, title=desc, expect=expect, auto=auto, reason=reason,
+        index=index, total=total, excel_id=_excel_ids_for(tc_id) or tc_id,
+    )
 
 
 def _wait_for_login(page, base_url: str):
@@ -673,6 +654,7 @@ def main():
             csv_path  = HERE / tc["file"]
             shots_dir = run_dir / f"{idx:02d}_{tc['id'].replace('/', '_')}"
 
+            clear_screen()
             print(f"\n{'─'*60}")
             print(f"  [{idx}/{len(TEST_CASES)}]  {tc['id']}  –  {tc['desc']}")
             print(f"  File   : {tc['file']}")
@@ -694,7 +676,8 @@ def main():
                     detect_fn=detect_fn)
                 print(f"  Screenshot saved: {screenshot}")
                 result, notes = _ask(tc["id"], tc["desc"], tc["expect"],
-                                     auto=auto_result, reason=auto_reason)
+                                     auto=auto_result, reason=auto_reason,
+                                     index=idx, total=len(TEST_CASES))
             except Exception as exc:
                 print(f"  ERROR during import: {exc}")
                 screenshot = ""

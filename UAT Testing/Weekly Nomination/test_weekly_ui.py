@@ -195,7 +195,7 @@ from playwright.sync_api import sync_playwright
 from _weekly_csv_sync import ensure_next_week
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from uat_excel_reporter import record_results, print_test_case_info
+from uat_excel_reporter import record_results, print_test_case_info, ask_verdict, clear_screen
 
 # This script's own scenario ids ("UI_06", "AN_02", "SETUP_01", ...) don't match
 # the Excel's "Test case ID" column directly — map each to the real Excel id(s).
@@ -552,28 +552,11 @@ def _detect(page, modal=None) -> tuple[str, str]:
 # User prompt
 # --------------------------------------------------------------------------
 def _ask(scenario: dict, auto: str, reason: str) -> tuple[str, str]:
-    excel_ids = _excel_ids_for(scenario["id"])
-    if excel_ids:
-        print_test_case_info(excel_ids[0])
-    label  = ("[expected PASS]" if scenario["expect"] == "PASS" else
-               "[expected FAIL]" if scenario["expect"] == "FAIL" else "[observe]")
-    aflag  = {"PASS": "AUTO-PASS", "FAIL": "AUTO-FAIL"}.get(auto, f"AUTO-{auto}")
-    mismatch = (scenario["expect"] != "?" and auto != scenario["expect"])
-    print(f"\n  {scenario['id']} {label}  –  {scenario['name']}")
-    print(f"  Auto : {aflag}{'  !! MISMATCH' if mismatch else ''}")
-    if reason: print(f"  Why  : {reason}")
-    default = auto if auto in ("PASS", "FAIL") else "PASS"
-    try:
-        raw    = input(f"  OK?  (P=pass / F=fail / S=skip / I=inconclusive / Enter={default}): ").strip().lower()
-        result = ("FAIL" if raw in ("f", "fail", "n", "no")
-                  else "PASS" if raw in ("p", "pass", "y", "yes", "o", "oui")
-                  else "SKIP" if raw in ("s", "skip")
-                  else "?" if raw in ("i", "inconclusive")
-                  else default)
-        notes  = input("  Notes (optional): ").strip()
-        return result, notes
-    except EOFError:
-        return default, reason
+    return ask_verdict(
+        tc_id=scenario["id"], title=scenario["name"], expect=scenario["expect"],
+        auto=auto, reason=reason, index=scenario.get("n"), total=len(SCENARIOS),
+        excel_id=_excel_ids_for(scenario["id"]) or scenario["id"],
+    )
 
 # ==========================================================================
 # Scenario helpers
@@ -1730,6 +1713,7 @@ def main():
                 continue
 
             shots_dir = run_dir / f"{sc['n']:02d}_{sc['id']}"
+            clear_screen()
             print(f"\n{'─'*64}")
             print(f"  [{sc['n']:02d}/{len(SCENARIOS)}]  {sc['id']}  |  {sc['name']}")
             print(f"  {sc['desc']}")

@@ -119,7 +119,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from uat_excel_reporter import record_results, print_test_case_info
+from uat_excel_reporter import record_results, print_test_case_info, ask_verdict, clear_screen
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(line_buffering=True)
@@ -1322,31 +1322,11 @@ def _test_ncc_calc_vs_api(
 # ASK + SUMMARY
 # ==============================================================================
 def _ask(scenario: dict, auto: str, reason: str) -> tuple[str, str]:
-    print_test_case_info(scenario["id"])
-    label    = "[expected PASS]" if scenario["expect"] == "PASS" else "[observe]"
-    aflag    = {"PASS": "AUTO-PASS", "FAIL": "AUTO-FAIL"}.get(auto, f"AUTO-{auto}")
-    mismatch = scenario["expect"] != "?" and auto != scenario["expect"]
-    flag     = "  !! MISMATCH" if mismatch else ""
-    print(f"\n  {scenario['id']}  {label}  –  {scenario['name']}")
-    print(f"  Auto-detected : {aflag}{flag}")
-    if reason:
-        print(f"  Reason        : {reason}")
-    default = scenario["expect"] if scenario["expect"] in ("PASS", "FAIL") else auto or "PASS"
-    try:
-        raw = input(
-            f"  Confirm? (P=pass / F=fail / S=skip / I=inconclusive / Enter={default}): "
-        ).strip().lower()
-        result = (
-            "FAIL" if raw in ("f", "fail", "n", "no")
-            else "PASS" if raw in ("p", "pass", "y", "yes", "o", "oui")
-            else "SKIP" if raw in ("s", "skip")
-            else "?" if raw in ("i", "inconclusive")
-            else default
-        )
-        notes = input("  Notes (optional): ").strip()
-        return result, notes
-    except EOFError:
-        return default, reason
+    return ask_verdict(
+        tc_id=scenario["id"], title=scenario["name"], expect=scenario["expect"],
+        auto=auto, reason=reason, index=scenario.get("n"), total=len(SCENARIOS),
+        excel_id=scenario["id"],
+    )
 
 
 def _print_summary(all_results: list) -> None:
@@ -1497,6 +1477,7 @@ def main() -> None:
             # ── NCC_UI_01: page loads ─────────────────────────────────────────
             sc = next(s for s in SCENARIOS if s["id"] == "NCC_UI_01")
             if sc["n"] >= args.start_from:
+                clear_screen()
                 auto, reason = _test_ui_page_loads(costs_by_date)
                 result, notes = _ask(sc, auto, reason)
                 all_results.append((sc, result, notes, reason))
@@ -1504,6 +1485,7 @@ def main() -> None:
             # ── NCC_UI_02: 7-day navigation ───────────────────────────────────
             sc = next(s for s in SCENARIOS if s["id"] == "NCC_UI_02")
             if sc["n"] >= args.start_from:
+                clear_screen()
                 auto, reason = _test_7day_navigation(costs_by_date, week_mon)
                 result, notes = _ask(sc, auto, reason)
                 all_results.append((sc, result, notes, reason))
@@ -1511,6 +1493,7 @@ def main() -> None:
             # ── NCC_UI_05: unit toggle ────────────────────────────────────────
             sc = next(s for s in SCENARIOS if s["id"] == "NCC_UI_05")
             if sc["n"] >= args.start_from:
+                clear_screen()
                 auto, reason = _test_unit_toggle(page, shots)
                 result, notes = _ask(sc, auto, reason)
                 all_results.append((sc, result, notes, reason))
@@ -1548,6 +1531,7 @@ def main() -> None:
     # ------------------------------------------------------------------
     sc = next(s for s in SCENARIOS if s["id"] == "NCC_CALC_07")
     if sc["n"] >= args.start_from:
+        clear_screen()
         print(f"\n  [{sc['id']}] Running Python NCC reference calculation…")
         params = _load_params()
         print(

@@ -100,7 +100,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from uat_excel_reporter import record_results, print_test_case_info
+from uat_excel_reporter import record_results, print_test_case_info, ask_verdict, clear_screen
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
@@ -267,27 +267,11 @@ def _parse_yearly_csv(path: Path):
 # User prompt (same pattern as the other scripts)
 # --------------------------------------------------------------------------
 def _ask(scenario, auto, reason):
-    if scenario.get("excel_id"):
-        print_test_case_info(scenario["excel_id"])
-    label    = "[expected PASS]" if scenario["expect"] == "PASS" else "[observe]"
-    aflag    = {"PASS": "AUTO-PASS", "FAIL": "AUTO-FAIL"}.get(auto, f"AUTO-{auto}")
-    mismatch = (scenario["expect"] not in ("?",) and auto not in ("?",) and auto != scenario["expect"])
-    print(f"\n{SEP}")
-    print(f"  {scenario['id']} {label}  –  {scenario['name']}")
-    print(f"  Auto : {aflag}{'  !! MISMATCH' if mismatch else ''}")
-    if reason: print(f"  Why  : {reason}")
-    default = auto if auto in ("PASS", "FAIL") else "PASS"
-    try:
-        raw    = input(f"  OK?  (P=pass / F=fail / S=skip / I=inconclusive / Enter={default}): ").strip().lower()
-        result = ("FAIL" if raw in ("f", "fail", "n", "no")
-                  else "PASS" if raw in ("p", "pass", "y", "yes", "o", "oui")
-                  else "SKIP" if raw in ("s", "skip")
-                  else "?" if raw in ("i", "inconclusive")
-                  else default)
-        notes  = input("  Notes (optional): ").strip()
-        return result, notes
-    except EOFError:
-        return default, reason
+    return ask_verdict(
+        tc_id=scenario["id"], title=scenario["name"], expect=scenario["expect"],
+        auto=auto, reason=reason, index=scenario.get("n"), total=len(SCENARIOS),
+        excel_id=scenario.get("excel_id") or scenario["id"],
+    )
 
 # ==========================================================================
 # UI_01 (Nom_YN_05): Access/view uploaded yearly nomination
@@ -714,6 +698,7 @@ def main():
                 continue
 
             shots_dir = run_dir / f"{sc['n']:02d}_{sc['id']}"
+            clear_screen()
             print(f"\n{'═'*64}")
             print(f"  [{sc['n']:02d}/{len(SCENARIOS)}]  {sc['id']}  |  {sc['name']}")
             print(f"  {sc['desc']}")

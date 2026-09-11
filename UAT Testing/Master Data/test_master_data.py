@@ -103,7 +103,7 @@ from datetime import datetime
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from uat_excel_reporter import record_results, print_test_case_info
+from uat_excel_reporter import record_results, print_test_case_info, ask_verdict, clear_screen
 
 HERE = Path(__file__).parent
 
@@ -322,32 +322,12 @@ def _reopen_and_check(page, shots_dir, row_text: str, step: str, check_fn) -> tu
 
 
 def _ask(tc_id: str, desc: str, expect: str,
-         auto: str = "?", reason: str = "") -> tuple[str, str]:
-    print_test_case_info(tc_id)
-    label = {"PASS": "[expected PASS]", "FAIL": "[expected FAIL]",
-             "?":    "[outcome unknown]"}.get(expect, "")
-    auto_label = {"PASS": "AUTO-PASS", "FAIL": "AUTO-FAIL",
-                  "?": "AUTO-?"}.get(auto, auto)
-    match_flag = ("" if expect == "?"
-                  else (" OK" if auto == expect else " !! MISMATCH"))
-
-    print(f"\n  {tc_id} {label}  –  {desc}")
-    print(f"  Auto-detected : {auto_label}{match_flag}")
-    if reason:
-        print(f"  Reason        : {reason}")
-
-    default = auto if auto in ("PASS", "FAIL") else "PASS"
-    try:
-        raw = input(f"  Confirm? (P=pass / F=fail / S=skip / I=inconclusive / Enter={default}): ").strip().lower()
-        result = ("FAIL" if raw in ("f", "fail", "n", "no")
-                  else "PASS" if raw in ("p", "pass", "y", "yes", "o", "oui")
-                  else "SKIP" if raw in ("s", "skip")
-                  else "?" if raw in ("i", "inconclusive")
-                  else default)
-        notes = input("  Notes (optional): ").strip()
-        return result, notes
-    except EOFError:
-        return default, reason
+         auto: str = "?", reason: str = "",
+         index: int | None = None, total: int | None = None) -> tuple[str, str]:
+    return ask_verdict(
+        tc_id=tc_id, title=desc, expect=expect, auto=auto, reason=reason,
+        index=index, total=total, excel_id=tc_id,
+    )
 
 
 # =============================================================================
@@ -1357,6 +1337,7 @@ def main():
                 continue
 
             shots_dir = run_dir / f"{idx:02d}_{tc['id']}"
+            clear_screen()
             print(f"\n{'─'*60}")
             print(f"  [{idx}/{len(TEST_CASES)}]  {tc['id']}  –  {tc['desc']}")
             print(f"  Expect : {tc['expect']}")
@@ -1364,7 +1345,8 @@ def main():
             try:
                 auto_result, auto_reason = _run_scenario(page, base_url, tc, shots_dir)
                 result, notes = _ask(tc["id"], tc["desc"], tc["expect"],
-                                     auto=auto_result, reason=auto_reason)
+                                     auto=auto_result, reason=auto_reason,
+                                     index=idx, total=len(TEST_CASES))
             except Exception as exc:
                 print(f"  ERROR: {exc}")
                 result, notes = "ERROR", str(exc)
