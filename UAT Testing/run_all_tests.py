@@ -45,6 +45,7 @@ Run:
     python run_all_tests.py
     python run_all_tests.py --from "Master Data"        # resume from a folder
     python run_all_tests.py --only "NetCommodityCost"   # just one folder
+    python run_all_tests.py --skip test_weekly_import.py  # run everything except this script
     python run_all_tests.py --excel "Reports\\Hera_UAT_Test_Plan_20260910-090000.xlsx"
 """
 from __future__ import annotations
@@ -95,6 +96,29 @@ def _run_script(folder: str, script: str, excel_path: Path) -> str:
     return status
 
 
+def _apply_skip(suite: list[tuple[str, list[str]]],
+                 skip_names: list[str]) -> tuple[list[tuple[str, list[str]]], set[str]]:
+    """Remove any script whose filename matches --skip (case-insensitive).
+
+    Returns the filtered suite plus the set of folder names that originally
+    had script(s) but ended up with none purely because every one of them
+    was skipped -- so the runner can report that distinctly from a folder
+    that never had an automated script to begin with (e.g. Plant
+    Communication - sending).
+    """
+    if not skip_names:
+        return suite, set()
+    skip_set = {s.lower() for s in skip_names}
+    filtered: list[tuple[str, list[str]]] = []
+    emptied_by_skip: set[str] = set()
+    for folder, scripts in suite:
+        kept = [s for s in scripts if s.lower() not in skip_set]
+        if scripts and not kept:
+            emptied_by_skip.add(folder)
+        filtered.append((folder, kept))
+    return filtered, emptied_by_skip
+
+
 def _select_suite(args: argparse.Namespace) -> list[tuple[str, list[str]]]:
     if args.only_folder:
         match = [f for f in SUITE if f[0].lower() == args.only_folder.lower()]
@@ -121,6 +145,10 @@ def main() -> None:
                          help="Resume from this folder name (skip everything before it)")
     parser.add_argument("--only", dest="only_folder", default=None,
                          help="Run only this one folder")
+    parser.add_argument("--skip", action="append", default=[], metavar="SCRIPT",
+                         help="Skip a specific script by filename (e.g. "
+                              "--skip test_weekly_import.py). Can be given "
+                              "multiple times to skip more than one script.")
     parser.add_argument("--excel", default=None, metavar="PATH",
                          help="Existing report file to accumulate results into. "
                               "Default: create one new timestamped report under "
@@ -128,6 +156,7 @@ def main() -> None:
     args = parser.parse_args()
 
     suite = _select_suite(args)
+    suite, emptied_by_skip = _apply_skip(suite, args.skip)
 
     excel_path = Path(args.excel) if args.excel else new_versioned_copy()
 
@@ -135,7 +164,12 @@ def main() -> None:
     print(f"  Excel report : {excel_path}")
     print("  Folders to run, in order:")
     for name, scripts in suite:
-        label = " -> ".join(scripts) if scripts else "(no test script — will be skipped)"
+        if scripts:
+            label = " -> ".join(scripts)
+        elif name in emptied_by_skip:
+            label = "(every script skipped via --skip)"
+        else:
+            label = "(no test script — will be skipped)"
         print(f"    - {name}: {label}")
 
     results: list[tuple[str, str, str]] = []
@@ -144,8 +178,11 @@ def main() -> None:
     for folder, scripts in suite:
         if not scripts:
             _banner(f"{folder}  ->  (no automated test script)")
-            print("  This folder holds the live sending service "
-                  "(app.py/api_client.py/mqtt_client.py/config.py), not test code.")
+            if folder in emptied_by_skip:
+                print("  Every script in this folder was skipped via --skip.")
+            else:
+                print("  This folder holds the live sending service "
+                      "(app.py/api_client.py/mqtt_client.py/config.py), not test code.")
             print("  Skipping.")
             results.append((folder, "(none)", "SKIPPED"))
             continue
