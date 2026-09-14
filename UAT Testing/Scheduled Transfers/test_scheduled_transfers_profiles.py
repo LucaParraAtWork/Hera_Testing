@@ -6,6 +6,15 @@ Verifies that confirmed scheduled transfers for week+1 produce the expected
 loading profiles.  Data capture and validation are merged per screen so that
 rich terminal output accompanies every navigation step.
 
+Setup (runs before every scenario, no verdict prompt of its own)
+------------------------------------------------------------------
+Imports a fresh Virya nomination CSV for week+1 and bulk-confirms it, so
+there are real confirmed transfers to check. Without this, whichever
+script last touched week+1 (e.g. test_weekly_ui.py, which ends its own run
+with a bulk REJECT) can leave the week with zero confirmed slots, and every
+check below trivially "passes" against all-zero data. Pass --skip-setup to
+go straight to the scenarios using whatever is already there instead.
+
 Scenarios
 ---------
   SCH_CAP  Navigate to Scheduling Screen (week+1):
@@ -167,6 +176,13 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 HERE = Path(__file__).parent
+
+# Reuse the Weekly Nomination CSV family's own "keep it dated for next week"
+# sync (see that module's docstring) -- SETUP below imports one of those same
+# files, so it must be re-dated the same way regardless of whether
+# test_weekly_import.py/test_weekly_ui.py have already run in this session.
+sys.path.insert(0, str(HERE.parent / "Weekly Nomination"))
+from _weekly_csv_sync import ensure_next_week
 
 # --------------------------------------------------------------------------
 # Timing
@@ -1349,6 +1365,169 @@ def _click_slot_bb(page, bb):
     page.mouse.down(); page.mouse.up()
     _ws()
 
+_SETUP_ERROR_KW = ["error", "exception", "invalid", "failed", "not valid",
+                   "cannot", "unexpected", "400", "500"]
+
+
+def _open_modal(page):
+    _wm()
+    m = page.locator("dialog[open]").last
+    m.wait_for(state="visible", timeout=10_000)
+    _ws()
+    return m
+
+
+def _close_modal(page, modal):
+    try:
+        if modal.is_visible():
+            close = modal.locator("button", has_text=re.compile(r"^Close$", re.I)).first
+            _safe_click(page, close, "Close")
+    except Exception:
+        try: page.keyboard.press("Escape")
+        except Exception: pass
+
+
+def _detect_bulk_toast(page, keyword: str) -> tuple[str, str]:
+    """Trust the app's own confirmation banner rather than re-deriving
+    success from slot CSS classes in the DOM -- the same approach
+    test_weekly_ui.py's _bulk_week/_detect_bulk_toast uses, deliberately
+    chosen there after DOM-based slot counting proved unreliable for bulk
+    actions. Kept as its own copy here per this project's convention of
+    each script being self-contained."""
+    for sel in [".toast", ".alert", ".snackbar", "[class*='toast']",
+                "[class*='notification']", "[class*='banner']"]:
+        try:
+            el = page.locator(sel).first
+            if el.is_visible(timeout=1500):
+                txt = el.inner_text(timeout=800).strip()
+                low = txt.lower()
+                if keyword in low:
+                    return "PASS", f"Toast: \"{txt[:150]}\""
+                if any(k in low for k in _SETUP_ERROR_KW):
+                    return "FAIL", f"Toast: \"{txt[:150]}\""
+        except Exception:
+            pass
+    try:
+        body = page.locator("body").inner_text(timeout=2000)
+        low  = body.lower()
+        idx  = low.find(keyword)
+        if idx != -1:
+            snip = body[max(0, idx - 10):idx + 80].strip().replace("\n", " ")
+            return "PASS", f"Page: \"{snip[:150]}\""
+        for k in _SETUP_ERROR_KW:
+            idx = low.find(k)
+            if idx != -1:
+                snip = body[max(0, idx - 20):idx + 60].strip().replace("\n", " ")
+                return "FAIL", f"Page: \"{snip[:150]}\""
+    except Exception:
+        pass
+    return "FAIL", f"No \"{keyword}\" confirmation message found"
+
+
+def _setup_confirmed_transfers(page, base_url, shots_dir):
+    """Import a fresh Virya nomination CSV for the target week and
+    bulk-confirm it, so SCH_CAP/PRF_CAP have real confirmed transfers to
+    check against instead of an empty week.
+
+    Without this, whichever script last touched this same "week+1" (e.g.
+    test_weekly_ui.py, which deliberately ends its own run with a bulk
+    REJECT) can leave zero confirmed slots here, and every count/limit
+    check downstream trivially "passes" against all-zero data -- there is
+    nothing left to actually validate. This mirrors test_weekly_ui.py's
+    SETUP_01 (import) + UI_10 (bulk confirm) steps; kept as its own copy
+    here rather than importing that script, per this project's convention
+    of each script being self-contained.
+
+    Runs before the scenario loop, with no verdict prompt of its own (pure
+    infrastructure, not a graded test case) -- same "SETUP PHASE, no result
+    tracking" pattern used elsewhere in this project.
+
+    Returns (ok: bool, message: str). Never raises -- a failure here just
+    means SCH_CAP/PRF_CAP will report whatever they find (likely zeros),
+    same as before this setup step existed.
+    """
+    shots_dir.mkdir(parents=True, exist_ok=True)
+
+    setup_week, setup_year, _, _ = ensure_next_week(quiet=True)
+    csv_path = HERE.parent / "Weekly Nomination" / f"Virya_Nomination_Week{setup_week}.csv"
+    if not csv_path.exists():
+        return False, f"Setup CSV not found: {csv_path}"
+
+    page.goto(f"{base_url}/nominations/weekly", wait_until="domcontentloaded")
+    _wm(); _quiet(page)
+    try:
+        _goto_week_year(page, setup_week, setup_year)
+    except Exception as e:
+        return False, f"Week navigation failed: {e}"
+    _quiet(page)
+    page.screenshot(path=str(shots_dir / "01_before_import.png"), full_page=True)
+
+    # --- Import ----------------------------------------------------------
+    try:
+        _safe_click(page, page.get_by_role(
+            "button", name=re.compile("^Import Nominations Request$", re.I)), "Import button")
+    except Exception:
+        _safe_click(page, page.locator("text=Import Nominations Request").first,
+                    "Import fallback")
+
+    try:
+        modal = _open_modal(page)
+    except Exception as e:
+        return False, f"Import modal did not open: {e}"
+    page.screenshot(path=str(shots_dir / "02_import_modal.png"))
+
+    try:
+        modal.locator("select#offtaker").select_option(label="Virya Energy NV")
+    except Exception:
+        modal.locator("select[name='offtaker']").select_option(label="Virya Energy NV")
+    _ws()
+
+    try:
+        modal.locator("input#nominationFile").set_input_files(str(csv_path))
+    except Exception:
+        modal.locator("input[type='file']").set_input_files(str(csv_path))
+    _ws()
+    page.screenshot(path=str(shots_dir / "03_ready.png"))
+
+    _safe_click(page, modal.get_by_role("button", name=re.compile("^Upload$", re.I)), "Upload")
+    print("  [SETUP] Waiting 5 s for Hera to process the import…")
+    time.sleep(5); _quiet(page)
+    page.screenshot(path=str(shots_dir / "04_after_import.png"))
+
+    _, import_reason = _detect_bulk_toast(page, "import")
+    _close_modal(page, modal)
+    _quiet(page)
+
+    new_count = page.locator("div.slot.status-new").count()
+    if new_count == 0:
+        return False, f"Import produced no NEW slots ({import_reason})"
+    print(f"  [SETUP] Imported: {new_count} NEW slot(s) now on the grid.")
+
+    # --- Bulk confirm ------------------------------------------------------
+    try:
+        cw_btn = page.get_by_role("button", name=re.compile(r"Confirm Week", re.I)).first
+        if not (cw_btn.is_visible() and not cw_btn.is_disabled()):
+            return False, "'Confirm Week' button not visible or disabled"
+        _safe_click(page, cw_btn, "Confirm Week")
+        confirm_modal = _open_modal(page)
+        page.screenshot(path=str(shots_dir / "05_confirm_popup.png"))
+        _safe_click(page, confirm_modal.get_by_role(
+            "button", name=re.compile("^Confirm$", re.I)), "Confirm")
+        try: confirm_modal.wait_for(state="detached", timeout=12_000)
+        except Exception: pass
+        _wl(); _quiet(page)
+    except Exception as e:
+        return False, f"Confirm Week failed: {e}"
+
+    page.screenshot(path=str(shots_dir / "06_after_confirm.png"), full_page=True)
+    auto, reason = _detect_bulk_toast(page, "confirmed week")
+    if auto != "PASS":
+        return False, f"Confirm Week did not report success: {reason}"
+
+    return True, (f"Imported {new_count} slot(s) and confirmed week "
+                  f"{setup_week}/{setup_year} ({reason})")
+
+
 def _do_rej_all(page, base_url, week, year, shots_dir):
     """
     REJ_ALL:
@@ -1558,6 +1737,11 @@ def main():
         "--excel", default=None, metavar="PATH",
         help="Report file to write Pass/Fail into. Default: create a new "
              "timestamped copy under UAT Testing/Reports/.")
+    parser.add_argument(
+        "--skip-setup", action="store_true",
+        help="Skip the CSV import + bulk-confirm setup step and go straight "
+             "to the scenarios, using whatever is already on the target "
+             "week's grid (may be empty/zero data).")
     args, _ = parser.parse_known_args()
     start_from = max(1, args.start_from)
 
@@ -1601,7 +1785,25 @@ def main():
         print("  └─────────────────────────────────────────────────────┘")
         input("  > ")
         _quiet(page)
-        print("  Login confirmed. Starting scenarios.\n")
+        print("  Login confirmed.\n")
+
+        # ------------------------------------------------------------------
+        # SETUP PHASE (no result tracking) -- import + confirm real data for
+        # the target week so SCH_CAP/PRF_CAP have something to check.
+        # ------------------------------------------------------------------
+        if not args.skip_setup and start_from <= 1:
+            setup_dir = run_dir / "00_setup"
+            setup_ok, setup_msg = _setup_confirmed_transfers(page, base_url, setup_dir)
+            status = "OK" if setup_ok else "WARNING"
+            print(f"  [SETUP] {status}: {setup_msg}")
+            if not setup_ok:
+                print("  [SETUP] Continuing anyway -- SCH_CAP/PRF_CAP may show "
+                      "empty/zero data as a result.")
+        else:
+            print("  [SETUP] Skipped (--skip-setup or --from > 1).")
+        print()
+
+        print("  Starting scenarios.\n")
 
         for sc in SCENARIOS:
             if sc["n"] < start_from:

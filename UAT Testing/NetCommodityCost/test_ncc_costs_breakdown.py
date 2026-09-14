@@ -25,8 +25,18 @@ Skip profiles capture (reuse the most recent g/s artifact already saved):
 Skip all browser work – only run the Python vs API comparison using existing artifacts:
     python "NetCommodityCost/test_ncc_costs_breakdown.py" --skip-capture
 
+Skip the setup step (import + bulk-confirm) and use whatever is already on the target
+week's grid instead – may be empty/zero data if nothing else has confirmed it recently:
+    python "NetCommodityCost/test_ncc_costs_breakdown.py" --skip-setup
+
 Notes
 -----
+- Before any capture, a SETUP step (no verdict prompt of its own) imports a fresh Virya
+  nomination CSV for the target week and bulk-confirms it, so there is real confirmed
+  data to compute NCC from. Without this, whichever script last touched that same week
+  (e.g. test_scheduled_transfers_profiles.py's own REJ_ALL, or test_weekly_ui.py's bulk
+  reject -- both deliberately end that way) can leave zero confirmed transfers, and every
+  calculation below trivially reduces to 0 vs 0.
 - Prices are read from parameters.csv at the project root (same file used by NCC_TESTING.py).
   The script adds sensible defaults for PRICE_ELEC (100 €/MWh) and PRICE_GAS (30 €/MWh)
   if those keys are absent from the file.
@@ -120,6 +130,13 @@ from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from uat_excel_reporter import record_results, print_test_case_info, ask_verdict, clear_screen
+
+# Reuse the Weekly Nomination CSV family's own "keep it dated for next week"
+# sync (see that module's docstring) -- SETUP below imports one of those same
+# files, so it must be re-dated the same way regardless of whether the
+# Weekly Nomination scripts have already run in this session.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "Weekly Nomination"))
+from _weekly_csv_sync import ensure_next_week
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(line_buffering=True)
@@ -824,6 +841,222 @@ def _calculate_ncc_per_day(
 
 
 # ==============================================================================
+# SETUP: import + confirm a real nomination for the target week
+# ==============================================================================
+_SETUP_ERROR_KW = ["error", "exception", "invalid", "failed", "not valid",
+                   "cannot", "unexpected", "400", "500"]
+
+
+def _safe_click(page, locator, what="element"):
+    for fn in [
+        lambda: locator.click(timeout=2000),
+        lambda: (locator.scroll_into_view_if_needed(timeout=1500),
+                 locator.click(timeout=1500, force=True)),
+    ]:
+        try: fn(); time.sleep(WAIT_S); return
+        except Exception: pass
+    try:
+        h = locator.element_handle(timeout=5000)
+        page.evaluate("el => el.click()", h); time.sleep(WAIT_S)
+    except Exception as e:
+        raise RuntimeError(f"Cannot click {what}: {e}")
+
+
+def _current_week_year(page):
+    try:
+        _quiet(page, 4000)
+        txt = page.locator("div.date-picker-current > button").first.inner_text(timeout=2000)
+        wk = int(m.group(1)) if (m := re.search(r"Week\s*(\d{1,2})", txt, re.I)) else None
+        yr = int(m.group(1)) if (m := re.search(r"\b(20\d{2})\b", txt)) else None
+    except Exception:
+        return None, None
+    if yr is None:
+        try:
+            body = page.locator("body").inner_text(timeout=2000)
+            yrs  = re.findall(r"\b(20\d{2})\b", body)
+            yr   = int(Counter(yrs).most_common(1)[0][0]) if yrs else None
+        except Exception:
+            pass
+    return wk, yr
+
+
+def _goto_week_year(page, week, year, max_clicks=120):
+    try: page.wait_for_selector("div.date-picker-current", timeout=10_000)
+    except Exception: pass
+    time.sleep(WAIT_M)
+    for _ in range(max_clicks):
+        wk, yr = _current_week_year(page)
+        if wk == week and (yr is None or yr == year):
+            return
+        if wk is None: time.sleep(WAIT_M); continue
+        curr_yr = yr if yr is not None else year
+        diff    = (year - curr_yr) * 52 + (week - wk)
+        if diff == 0: return
+        btn = ("div.date-picker-next > button" if diff > 0
+               else "div.date-picker-previous > button")
+        try: page.locator(btn).first.click()
+        except Exception: pass
+        time.sleep(WAIT_S)
+
+
+def _open_modal(page):
+    time.sleep(WAIT_M)
+    m = page.locator("dialog[open]").last
+    m.wait_for(state="visible", timeout=10_000)
+    time.sleep(WAIT_S)
+    return m
+
+
+def _close_modal(page, modal):
+    try:
+        if modal.is_visible():
+            close = modal.locator("button", has_text=re.compile(r"^Close$", re.I)).first
+            _safe_click(page, close, "Close")
+    except Exception:
+        try: page.keyboard.press("Escape")
+        except Exception: pass
+
+
+def _detect_bulk_toast(page, keyword: str) -> tuple[str, str]:
+    """Trust the app's own confirmation banner rather than re-deriving
+    success from slot CSS classes -- same approach test_weekly_ui.py's
+    _bulk_week/_detect_bulk_toast uses. Kept as its own copy here per this
+    project's convention of each script being self-contained."""
+    for sel in [".toast", ".alert", ".snackbar", "[class*='toast']",
+                "[class*='notification']", "[class*='banner']"]:
+        try:
+            el = page.locator(sel).first
+            if el.is_visible(timeout=1500):
+                txt = el.inner_text(timeout=800).strip()
+                low = txt.lower()
+                if keyword in low:
+                    return "PASS", f"Toast: \"{txt[:150]}\""
+                if any(k in low for k in _SETUP_ERROR_KW):
+                    return "FAIL", f"Toast: \"{txt[:150]}\""
+        except Exception:
+            pass
+    try:
+        body = page.locator("body").inner_text(timeout=2000)
+        low  = body.lower()
+        idx  = low.find(keyword)
+        if idx != -1:
+            snip = body[max(0, idx - 10):idx + 80].strip().replace("\n", " ")
+            return "PASS", f"Page: \"{snip[:150]}\""
+        for k in _SETUP_ERROR_KW:
+            idx = low.find(k)
+            if idx != -1:
+                snip = body[max(0, idx - 20):idx + 60].strip().replace("\n", " ")
+                return "FAIL", f"Page: \"{snip[:150]}\""
+    except Exception:
+        pass
+    return "FAIL", f"No \"{keyword}\" confirmation message found"
+
+
+def _setup_confirmed_transfers(page, base_url, shots_dir):
+    """Import a fresh Virya nomination CSV for the target week and
+    bulk-confirm it, so Costs Breakdown / g/s Profiles / Scheduling all have
+    real confirmed transfers to compute NCC from, instead of an empty week.
+
+    Without this, whichever script last touched this same "week+1" (e.g.
+    test_scheduled_transfers_profiles.py's own SCHED_TRF_08, or
+    test_weekly_ui.py's UI_11 -- both deliberately end by rejecting
+    everything) can leave zero confirmed transfers here, and every NCC
+    calculation trivially reduces to 0 vs 0 -- there's nothing meaningful
+    left to compare. Mirrors the identical setup step added to
+    test_scheduled_transfers_profiles.py for the same reason; kept as its
+    own copy here per this project's convention of each script being
+    self-contained.
+
+    Runs before any capture step, with no verdict prompt of its own (pure
+    infrastructure, not a graded test case).
+
+    Returns (ok: bool, message: str). Never raises -- a failure here just
+    means the capture steps will find whatever's actually there (likely
+    zeros), same as before this setup step existed.
+    """
+    shots_dir.mkdir(parents=True, exist_ok=True)
+
+    setup_week, setup_year, _, _ = ensure_next_week(quiet=True)
+    csv_path = HERE.parent / "Weekly Nomination" / f"Virya_Nomination_Week{setup_week}.csv"
+    if not csv_path.exists():
+        return False, f"Setup CSV not found: {csv_path}"
+
+    _safe_goto(page, f"{base_url}/nominations/weekly")
+    time.sleep(WAIT_M); _quiet(page)
+    try:
+        _goto_week_year(page, setup_week, setup_year)
+    except Exception as e:
+        return False, f"Week navigation failed: {e}"
+    _quiet(page)
+    page.screenshot(path=str(shots_dir / "01_before_import.png"), full_page=True)
+
+    # --- Import ------------------------------------------------------------
+    try:
+        _safe_click(page, page.get_by_role(
+            "button", name=re.compile("^Import Nominations Request$", re.I)), "Import button")
+    except Exception:
+        _safe_click(page, page.locator("text=Import Nominations Request").first,
+                    "Import fallback")
+
+    try:
+        modal = _open_modal(page)
+    except Exception as e:
+        return False, f"Import modal did not open: {e}"
+    page.screenshot(path=str(shots_dir / "02_import_modal.png"))
+
+    try:
+        modal.locator("select#offtaker").select_option(label="Virya Energy NV")
+    except Exception:
+        modal.locator("select[name='offtaker']").select_option(label="Virya Energy NV")
+    time.sleep(WAIT_S)
+
+    try:
+        modal.locator("input#nominationFile").set_input_files(str(csv_path))
+    except Exception:
+        modal.locator("input[type='file']").set_input_files(str(csv_path))
+    time.sleep(WAIT_S)
+    page.screenshot(path=str(shots_dir / "03_ready.png"))
+
+    _safe_click(page, modal.get_by_role("button", name=re.compile("^Upload$", re.I)), "Upload")
+    print("  [SETUP] Waiting 5 s for Hera to process the import…")
+    time.sleep(5); _quiet(page)
+    page.screenshot(path=str(shots_dir / "04_after_import.png"))
+
+    _, import_reason = _detect_bulk_toast(page, "import")
+    _close_modal(page, modal)
+    _quiet(page)
+
+    new_count = page.locator("div.slot.status-new").count()
+    if new_count == 0:
+        return False, f"Import produced no NEW slots ({import_reason})"
+    print(f"  [SETUP] Imported: {new_count} NEW slot(s) now on the grid.")
+
+    # --- Bulk confirm --------------------------------------------------------
+    try:
+        cw_btn = page.get_by_role("button", name=re.compile(r"Confirm Week", re.I)).first
+        if not (cw_btn.is_visible() and not cw_btn.is_disabled()):
+            return False, "'Confirm Week' button not visible or disabled"
+        _safe_click(page, cw_btn, "Confirm Week")
+        confirm_modal = _open_modal(page)
+        page.screenshot(path=str(shots_dir / "05_confirm_popup.png"))
+        _safe_click(page, confirm_modal.get_by_role(
+            "button", name=re.compile("^Confirm$", re.I)), "Confirm")
+        try: confirm_modal.wait_for(state="detached", timeout=12_000)
+        except Exception: pass
+        _wl(); _quiet(page)
+    except Exception as e:
+        return False, f"Confirm Week failed: {e}"
+
+    page.screenshot(path=str(shots_dir / "06_after_confirm.png"), full_page=True)
+    auto, reason = _detect_bulk_toast(page, "confirmed week")
+    if auto != "PASS":
+        return False, f"Confirm Week did not report success: {reason}"
+
+    return True, (f"Imported {new_count} slot(s) and confirmed week "
+                  f"{setup_week}/{setup_year} ({reason})")
+
+
+# ==============================================================================
 # PROFILES CAPTURE  (g/s toggle needed for truck filling data)
 # ==============================================================================
 def _capture_gs_profiles(
@@ -1329,7 +1562,7 @@ def _ask(scenario: dict, auto: str, reason: str) -> tuple[str, str]:
     )
 
 
-def _print_summary(all_results: list) -> None:
+def _print_summary(all_results: list, excel_path: str | None = None) -> None:
     print("\n" + "=" * 70)
     print("  RESULTS SUMMARY")
     print("=" * 70)
@@ -1349,7 +1582,7 @@ def _print_summary(all_results: list) -> None:
     print(f"\n  Results saved to {csv_path}")
 
     record_results([(sc["id"], res, notes) for sc, res, notes, _ in all_results],
-                    xlsx_path=args.excel, source="test_ncc_costs_breakdown.py")
+                    xlsx_path=excel_path, source="test_ncc_costs_breakdown.py")
 
 
 # ==============================================================================
@@ -1371,6 +1604,13 @@ def main() -> None:
         "--skip-capture",
         action="store_true",
         help="Skip all browser work; only run Python vs API comparison",
+    )
+    parser.add_argument(
+        "--skip-setup",
+        action="store_true",
+        help="Skip the CSV import + bulk-confirm setup step and go straight "
+             "to capture, using whatever is already on the target week's "
+             "grid (may be empty/zero data).",
     )
     parser.add_argument(
         "--start-from",
@@ -1449,7 +1689,26 @@ def main() -> None:
             print("  └──────────────────────────────────────────────────────┘")
             input("  > ")
             _quiet(page)
-            print("  Login confirmed. Starting scenarios.\n")
+            print("  Login confirmed.\n")
+
+            # ------------------------------------------------------------
+            # SETUP PHASE (no result tracking) -- import + confirm real
+            # data for the target week so every capture below has
+            # something meaningful to compute NCC from.
+            # ------------------------------------------------------------
+            if not args.skip_setup:
+                setup_dir = shots / "00_setup"
+                setup_ok, setup_msg = _setup_confirmed_transfers(page, base_url, setup_dir)
+                status = "OK" if setup_ok else "WARNING"
+                print(f"  [SETUP] {status}: {setup_msg}")
+                if not setup_ok:
+                    print("  [SETUP] Continuing anyway -- captures below may show "
+                          "empty/zero data as a result.")
+            else:
+                print("  [SETUP] Skipped (--skip-setup).")
+            print()
+
+            print("  Starting scenarios.\n")
 
             # ── Step 1: Capture g/s profiles (needed for NCC_CALC_07) ────────
             if not args.skip_profiles:
@@ -1562,7 +1821,7 @@ def main() -> None:
     # Summary
     # ------------------------------------------------------------------
     if all_results:
-        _print_summary(all_results)
+        _print_summary(all_results, excel_path=args.excel)
     else:
         print("\n  No scenarios were run.")
 
