@@ -48,6 +48,7 @@ import csv
 import getpass
 import os
 import shutil
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -197,10 +198,38 @@ def print_test_case_info(excel_id: str, template_path: Path | None = None) -> No
     print("  └" + "─" * 50)
 
 
+def _open_csv_preview(csv_path):
+    """Open csv_path in Notepad (a plain preview, spawned as its own process
+    so it can be closed on its own without touching any other window) so the
+    tester can see exactly what was uploaded while deciding the verdict.
+    Returns the Popen handle, or None if it couldn't be opened -- never
+    fatal to the verdict prompt itself.
+    """
+    if os.name != "nt" or not csv_path:
+        return None
+    path = Path(csv_path)
+    if not path.exists():
+        return None
+    try:
+        return subprocess.Popen(["notepad.exe", str(path)])
+    except Exception:
+        return None
+
+
+def _close_csv_preview(proc) -> None:
+    if proc is None:
+        return
+    try:
+        proc.terminate()
+    except Exception:
+        pass
+
+
 def ask_verdict(tc_id: str, title: str | None, expect: str, *,
                  auto: str | None = None, reason: str | None = None,
                  index: int | None = None, total: int | None = None,
-                 excel_id: str | list[str] | None = None) -> tuple[str, str]:
+                 excel_id: str | list[str] | None = None,
+                 csv_path: str | Path | None = None) -> tuple[str, str]:
     """Print one uniform confirmation block and return (result, notes).
 
     This is the single shared prompt every test script's own _ask() wrapper
@@ -215,6 +244,11 @@ def ask_verdict(tc_id: str, title: str | None, expect: str, *,
     excel_id may be a single ID or a list (some scenarios are credited
     against more than one row in the Excel) -- steps are printed for every
     id that has a matching row.
+
+    csv_path: for CSV import scenarios, the file that was uploaded -- opened
+    in Notepad right as the verdict prompt appears, and closed again right
+    after a verdict is recorded, so the tester can see exactly what was
+    imported without having to go find the file themselves.
     """
     excel_ids = excel_id if isinstance(excel_id, list) else [excel_id or tc_id]
     w = _VERDICT_WIDTH
@@ -259,29 +293,37 @@ def ask_verdict(tc_id: str, title: str | None, expect: str, *,
     else:
         prompt = " >>> YOUR VERDICT (P=Pass / F=Fail / S=Skip / I=Inconclusive): "
 
+    csv_proc = _open_csv_preview(csv_path)
+    if csv_proc is not None:
+        print(f" (Opened {Path(csv_path).name} in Notepad for reference -- "
+              f"it will close once you answer.)")
+
     result = None
     notes = ""
-    while result is None:
-        try:
-            raw = input(prompt).strip().lower()
-        except EOFError:
-            result = "?"
-            notes = "Auto-recorded as Inconclusive: no interactive input available (EOF)."
-            print(f"\n {notes}")
-            break
-        if not raw and default:
-            result = default
-        elif raw in _VERDICT_KEYS:
-            result = _VERDICT_KEYS[raw]
-        else:
-            hint = " (or press Enter to accept the default)" if default else ""
-            print(f"     Please enter P, F, S, or I{hint}.")
+    try:
+        while result is None:
+            try:
+                raw = input(prompt).strip().lower()
+            except EOFError:
+                result = "?"
+                notes = "Auto-recorded as Inconclusive: no interactive input available (EOF)."
+                print(f"\n {notes}")
+                break
+            if not raw and default:
+                result = default
+            elif raw in _VERDICT_KEYS:
+                result = _VERDICT_KEYS[raw]
+            else:
+                hint = " (or press Enter to accept the default)" if default else ""
+                print(f"     Please enter P, F, S, or I{hint}.")
 
-    if not notes:
-        try:
-            notes = input("     Notes (optional): ").strip()
-        except EOFError:
-            notes = notes or ""
+        if not notes:
+            try:
+                notes = input("     Notes (optional): ").strip()
+            except EOFError:
+                notes = notes or ""
+    finally:
+        _close_csv_preview(csv_proc)
 
     print("=" * w)
     print(f" -> Recorded: {result}" + (f"   ({notes})" if notes else ""))

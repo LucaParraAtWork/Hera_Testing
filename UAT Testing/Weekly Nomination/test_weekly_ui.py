@@ -14,7 +14,8 @@ Scenarios covered:
   UI_04     Open slot modal – add extra trailer row → fill → Save
   UI_05     Open slot modal – delete a trailer row → Save
   AN_02     Negative: Drop-Off Type 1 then mismatched Pick-Up Type 2 (Nom_AN_02)
-  AN_03     Negative: two consecutive Drop-Offs, no Pick-Up between (Nom_AN_03)
+  AN_03     Negative: two consecutive Drop-Offs across two slots, no Pick-Up
+            between, same offtaker (Nom_AN_03)
   AN_05     Delete every trailer row in a slot → Save → slot returns empty (Nom_AN_05)
   UI_06     Confirm first NEW slot (individual) (SCHED_CONF_01)
   UI_07     Reject the confirmed slot (individual) (SCHED_REJ_01)
@@ -37,7 +38,8 @@ State machine:
   UI_02-05  → modal data edits on NEW slots (slots remain NEW)
   AN_02     → no lasting state change beyond the earlier slot's Drop-Off Type 1
               (the later slot's mismatched save is expected to be rejected)
-  AN_03     → no state change (the second Drop-Off save is expected to be rejected)
+  AN_03     → no lasting state change beyond the first slot's Messer Drop-Off
+              (the second slot's Drop-Off save is expected to be rejected)
   AN_05     → one NEW slot emptied (all trailer rows deleted, saved as empty)
   UI_06     → first slot CONFIRMED
   UI_07     → that slot REJECTED (rest still NEW)
@@ -82,6 +84,12 @@ TARGET_YEAR = 2026
 WAIT_S = 0.3
 WAIT_M = 0.8
 WAIT_L = 1.8
+WAIT_PERSIST = 3.0  # after a Save, before re-opening the same slot to verify
+                    # persistence -- Hera's backend write/refetch can lag
+                    # behind the modal closing, so a re-open right after
+                    # Save+networkidle can read stale data (seen live: a
+                    # just-added trailer row reported as "not persisted"
+                    # when it actually was, just not yet reflected).
 SLOWMO = 0   # ms between Playwright actions
 
 # ==========================================================================
@@ -432,6 +440,99 @@ def _click_slot_bb(page, bb):
     page.mouse.down(); page.mouse.up()
     _ws()
 
+def _is_empty_slot_color(el) -> bool:
+    """True if el renders with the neutral grey background used for a
+    genuinely untouched grid cell, as opposed to the teal/green used once a
+    slot has real content (NEW or confirmed) or red (rejected). Grey has
+    R/G/B all close together (low saturation); teal/red are clearly
+    saturated. More reliable than counting innerHTML length, which no
+    longer reliably tells an untouched cell apart from a populated one on
+    this grid (confirmed live: it was finding zero "empty" cells even with
+    several visibly grey ones on screen)."""
+    try:
+        rgb = el.evaluate(
+            "el => { const c = getComputedStyle(el).backgroundColor; "
+            "const m = c.match(/\\d+/g); return m ? m.slice(0, 3).map(Number) : null; }"
+        )
+    except Exception:
+        return False
+    if not rgb or len(rgb) < 3:
+        return False
+    r, g, b = rgb[:3]
+    return (max(r, g, b) - min(r, g, b)) < 15
+
+
+def _find_empty_slots(page):
+    """Bounding boxes (top-to-bottom order) of slots that are neither
+    status-new nor status-rejected AND render as the neutral grey empty
+    color -- see _is_empty_slot_color. Use _open_blank_slot() instead of
+    calling this directly when you're about to write to one of them; it
+    adds a post-open verification that the slot is truly untouched."""
+    _quiet(page)
+    candidates = page.locator("div.slot:not(.status-new):not(.status-rejected)")
+    seen = {}
+    for i in range(candidates.count()):
+        el = candidates.nth(i)
+        try:
+            if not _is_empty_slot_color(el):
+                continue
+            bb = el.bounding_box(timeout=1000)
+            if not bb or bb["width"] < 20 or bb["height"] < 8:
+                continue
+            key = (round(bb["y"], 1), round(bb["x"], 1))
+            if key not in seen:
+                seen[key] = bb
+        except Exception:
+            continue
+    return [seen[k] for k in sorted(seen.keys())]
+
+
+def _modal_is_blank(modal) -> bool:
+    """True if a just-opened slot modal has no trailer rows and no offtaker
+    already chosen -- i.e. this really is an untouched slot. Used as a
+    safety net after _find_empty_slots' color check, before any test writes
+    to a slot found that way: a previous run mistakenly wrote to two
+    already-populated Virya slots (color/heuristic aside, this check alone
+    would have caught it), corrupting real nomination data for the rest of
+    the week."""
+    try:
+        if modal.locator("select[name='trailerType']").count() > 0:
+            return False
+    except Exception:
+        pass
+    try:
+        sel = modal.locator("select#offtaker").first
+        if not sel.is_visible(timeout=500):
+            sel = modal.locator("select[name='offtaker']").first
+        text = _selected_text(sel)
+        if text and not _PLACEHOLDER.match(text.strip()):
+            return False
+    except Exception:
+        pass
+    return True
+
+
+def _open_blank_slot(page, exclude_bbs=(), tol=3):
+    """Find a slot that looks empty (grey, not new/rejected), open it, and
+    confirm via _modal_is_blank() that it truly has no offtaker/trailer
+    rows yet -- skipping (and closing) any candidate that turns out not to
+    be blank, and any bbox in exclude_bbs (e.g. a slot already used earlier
+    in the same scenario). Returns (bb, modal), or (None, None) if no
+    genuinely blank slot could be found/opened."""
+    for bb in _find_empty_slots(page):
+        if any(abs(bb["y"] - x["y"]) <= tol and abs(bb["x"] - x["x"]) <= tol
+               for x in exclude_bbs):
+            continue
+        _click_slot_bb(page, bb)
+        try:
+            modal = _open_modal(page)
+        except Exception:
+            continue
+        if _modal_is_blank(modal):
+            return bb, modal
+        _close_modal(page, modal)
+    return None, None
+
 # --------------------------------------------------------------------------
 # Delete-button helper
 # The trash buttons are icon-only (no text). We find all <button> elements
@@ -482,7 +583,7 @@ def _selected_text(locator):
 def _reopen_and_verify(page, slot_bb, shots_dir, verify_fn, step="05"):
     """Re-open the slot at slot_bb, call verify_fn(modal) → (ok: bool, detail: str),
     screenshot, close modal.  Returns (ok, detail)."""
-    _wm()
+    time.sleep(WAIT_PERSIST)
     _click_slot_bb(page, slot_bb)
     try:
         modal = _open_modal(page)
@@ -1083,11 +1184,11 @@ def _inconsistent_trailer_types(page, nominations_url, shots_dir):
         return str(shots_dir / "03_no_later_slot.png"), "?", "Modal did not open (later slot)"
 
     try:
-        _select_option_flexible(modal2.locator("select[name='transferType']").first, "Pick-Up"); _ws()
+        _select_option_flexible(modal2.locator("select[name='transferType']").first, "Pickup"); _ws()
     except Exception as e:
         _close_modal(page, modal2)
         return str(shots_dir / "03_no_later_slot.png"), "?", \
-               f"'Pick-Up' not selectable on later slot (unrelated to the mismatch): {e}"
+               f"'Pickup' not selectable on later slot (unrelated to the mismatch): {e}"
 
     try:
         _select_option_flexible(modal2.locator("select[name='trailerType']").first, "Type 2"); _ws()
@@ -1126,81 +1227,129 @@ def _inconsistent_trailer_types(page, nominations_url, shots_dir):
 # AN_03: Two consecutive Drop-Offs, no Pick-Up between (negative — expect FAIL)
 # --------------------------------------------------------------------------
 def _two_dropoffs_without_pickup(page, nominations_url, shots_dir):
-    """Add a second trailer row to a NEW slot and try to force it to
-    Drop-Off too (no Pick-Up between two Drop-Offs) — Hera should reject the
-    sequence. Same PASS/FAIL convention as _inconsistent_trailer_types."""
+    """Save a Drop-Off for Messer Belgium NV on a genuinely empty (grey)
+    slot, then save ANOTHER Drop-Off for the same offtaker on a second,
+    also-genuinely-empty slot -- no Pick-Up in between. Hera should reject
+    the second one.
+
+    Uses two separate slots (a real cross-slot scheduling sequence) rather
+    than two trailer rows crammed into one slot's modal: within a single
+    modal Hera's dropdown already restricts the second row to Pick-Up only,
+    which only proves the single-slot UI restriction, not the actual
+    business rule this test case is about. Messer (not the default Virya)
+    keeps this negative test from disturbing Virya's slots used by every
+    other scenario in this script -- same reasoning as UI_02's offtaker
+    switch and _inconsistent_trailer_types' two-slot pattern, which this
+    mirrors structurally.
+
+    Both slots are found via _open_blank_slot (grey-colored, not
+    status-new/status-rejected, AND confirmed empty from inside the opened
+    modal) -- NOT _snapshot_slots(page, "new"), which returns slots that
+    already carry real nomination data from the CSV import. An earlier
+    version used "new" slots here and ended up overwriting two already-
+    populated Virya slots, corrupting real data for the rest of the week.
+    """
     shots_dir.mkdir(parents=True, exist_ok=True)
     _goto_nominations(page, nominations_url); _wm()
     try: _goto_week_year(page, TARGET_WEEK, TARGET_YEAR)
     except Exception: pass
 
-    bbs = _snapshot_slots(page, "new")
-    if not bbs:
-        return str(shots_dir / "no_slot.png"), "?", "No NEW slots found"
-
     page.screenshot(path=str(shots_dir / "01_before.png"), full_page=True)
-    _click_slot_bb(page, bbs[0])
 
-    try:
-        modal = _open_modal(page)
-    except Exception:
-        return str(shots_dir / "01_before.png"), "?", "Modal did not open"
-
-    page.screenshot(path=str(shots_dir / "02_modal_open.png"))
-
-    try:
-        _select_option_flexible(modal.locator("select[name='trailerType']").first, "Type 1"); _ws()
+    def _set_messer_dropoff(modal):
+        offtaker_sel = modal.locator("select#offtaker").first
+        try:
+            if not offtaker_sel.is_visible(timeout=1000):
+                offtaker_sel = modal.locator("select[name='offtaker']").first
+        except Exception:
+            offtaker_sel = modal.locator("select[name='offtaker']").first
+        _select_option_flexible(offtaker_sel, "Messer Belgium NV"); _ws()
         _select_option_flexible(modal.locator("select[name='transferType']").first, "Drop-Off"); _ws()
-    except Exception as e:
-        _close_modal(page, modal)
-        return str(shots_dir / "02_modal_open.png"), "?", f"Could not set first row Drop-Off: {e}"
+        _select_first_available(modal.locator("select[name='trailerType']").first); _ws()
+
+    # --- First empty slot: Messer Belgium NV, Drop-Off, Save ------------
+    first_bb, modal = _open_blank_slot(page)
+    if modal is None:
+        return str(shots_dir / "01_before.png"), "?", \
+               "No genuinely empty slot found for the first Drop-Off"
 
     try:
-        add_btn = modal.locator("button", has_text=re.compile(r"\+\s*Add Trailer", re.I)).first
-        _safe_click(page, add_btn, "+ Add Trailer"); _ws()
+        _set_messer_dropoff(modal)
     except Exception as e:
         _close_modal(page, modal)
-        return str(shots_dir / "02_modal_open.png"), "?", f"'+ Add Trailer' failed: {e}"
+        return str(shots_dir / "01_before.png"), "?", \
+               f"Could not set first Drop-Off for Messer Belgium NV: {e}"
 
-    page.screenshot(path=str(shots_dir / "03_row_added.png"))
+    page.screenshot(path=str(shots_dir / "02_first_dropoff_messer.png"))
 
-    second_transfer = modal.locator("select[name='transferType']").last
     try:
-        _select_option_flexible(second_transfer, "Drop-Off"); _ws()
+        _safe_click(page, modal.get_by_role("button", name=re.compile("^Save$", re.I)),
+                    "Save (first Messer Drop-Off)")
+        try: modal.wait_for(state="detached", timeout=10_000)
+        except Exception: pass
+        _quiet(page)
     except Exception as e:
-        _close_modal(page, modal)
-        return str(shots_dir / "03_row_added.png"), "FAIL", \
-               f"'Drop-Off' not offered for the second row — Hera only offers " \
-               f"Pick-Up next, preventing the invalid sequence at dropdown level ({e})"
+        return str(shots_dir / "02_first_dropoff_messer.png"), "?", \
+               f"Save failed on first (setup) slot: {e}"
+
+    setup_auto, setup_reason = _detect(page)
+    if setup_auto == "FAIL":
+        return str(shots_dir / "02_first_dropoff_messer.png"), "?", \
+               f"Setup slot itself failed to save, cannot test the sequence: {setup_reason}"
+
+    # --- Next empty slot: same offtaker, Drop-Off again (no Pick-Up between) ---
+    time.sleep(WAIT_PERSIST)
+    later_bb, modal2 = _open_blank_slot(page, exclude_bbs=[first_bb])
+    if modal2 is None:
+        return str(shots_dir / "03_no_later_slot.png"), "?", \
+               "No second genuinely empty slot available for the second Drop-Off"
 
     try:
-        _select_first_available(modal.locator("select[name='trailerType']").last); _ws()
+        offtaker_sel2 = modal2.locator("select#offtaker").first
+        if not offtaker_sel2.is_visible(timeout=1000):
+            offtaker_sel2 = modal2.locator("select[name='offtaker']").first
+        _select_option_flexible(offtaker_sel2, "Messer Belgium NV"); _ws()
     except Exception as e:
-        _close_modal(page, modal)
-        return str(shots_dir / "03_row_added.png"), "?", f"Second row type fill failed: {e}"
+        _close_modal(page, modal2)
+        return str(shots_dir / "03_no_later_slot.png"), "?", \
+               f"Could not select Messer Belgium NV on the second slot: {e}"
 
-    page.screenshot(path=str(shots_dir / "04_second_dropoff_filled.png"))
-
-    save_btn = modal.get_by_role("button", name=re.compile("^Save$", re.I))
     try:
-        if save_btn.is_disabled(timeout=1000):
-            _close_modal(page, modal)
-            return str(shots_dir / "04_second_dropoff_filled.png"), "FAIL", \
-                   "Save disabled for two consecutive Drop-Offs (prevented at UI level)"
+        _select_option_flexible(modal2.locator("select[name='transferType']").first, "Drop-Off"); _ws()
+    except Exception as e:
+        _close_modal(page, modal2)
+        return str(shots_dir / "03_no_later_slot.png"), "FAIL", \
+               f"'Drop-Off' not offered for Messer's second slot — Hera only offers " \
+               f"Pick-Up next, preventing the invalid sequence before Save ({e})"
+
+    try:
+        _select_first_available(modal2.locator("select[name='trailerType']").first); _ws()
+    except Exception as e:
+        _close_modal(page, modal2)
+        return str(shots_dir / "03_no_later_slot.png"), "?", f"Second slot type fill failed: {e}"
+
+    page.screenshot(path=str(shots_dir / "04_second_dropoff_messer.png"))
+
+    save_btn2 = modal2.get_by_role("button", name=re.compile("^Save$", re.I))
+    try:
+        if save_btn2.is_disabled(timeout=1000):
+            _close_modal(page, modal2)
+            return str(shots_dir / "04_second_dropoff_messer.png"), "FAIL", \
+                   "Save disabled for the second consecutive Drop-Off (prevented at UI level)"
     except Exception:
         pass
 
     try:
-        _safe_click(page, save_btn, "Save (two Drop-Offs, expect rejection)")
+        _safe_click(page, save_btn2, "Save (second Drop-Off, expect rejection)")
         page.wait_for_timeout(1500)
         _quiet(page)
     except Exception as e:
-        return str(shots_dir / "04_second_dropoff_filled.png"), "FAIL", \
+        return str(shots_dir / "04_second_dropoff_messer.png"), "FAIL", \
                f"Save could not be completed for the invalid sequence: {e}"
 
     shot = str(shots_dir / "05_after_save_attempt.png")
     page.screenshot(path=shot, full_page=True)
-    auto, reason = _detect(page, modal)
+    auto, reason = _detect(page, modal2)
     return shot, auto, reason
 
 # --------------------------------------------------------------------------
@@ -1556,30 +1705,15 @@ def _add_slot_ui(page, nominations_url, shots_dir):
     _quiet(page)
     page.screenshot(path=str(shots_dir / "01_grid.png"), full_page=True)
 
-    # Find a truly empty slot: no status-new, no status-rejected, and very little
-    # innerHTML (no nomination has been placed there yet).
-    # After a bulk reject, rejected slots still sit in the grid — we must skip them.
-    candidates = page.locator("div.slot:not(.status-new):not(.status-rejected)")
-    slot = None
-    for i in range(candidates.count()):
-        el = candidates.nth(i)
-        try:
-            if len(el.inner_html(timeout=500).strip()) < 10:
-                slot = el
-                break
-        except Exception:
-            continue
-
-    if slot is None:
+    # Find a truly empty slot (grey, not status-new/status-rejected) and
+    # confirm via the opened modal that it really has no offtaker/trailer
+    # rows yet -- see _open_blank_slot. After a bulk reject, rejected slots
+    # still sit in the grid, and NEW slots already carry real nomination
+    # data, so both must be skipped.
+    bb, modal = _open_blank_slot(page)
+    if modal is None:
         return str(shots_dir / "01_grid.png"), "FAIL", \
                "No truly empty slot found (all non-new slots are rejected or filled)"
-
-    _safe_click(page, slot, "empty slot")
-
-    try:
-        modal = _open_modal(page)
-    except Exception:
-        return str(shots_dir / "01_grid.png"), "FAIL", "Empty slot modal did not open"
 
     page.screenshot(path=str(shots_dir / "02_modal_open.png"))
 
@@ -1600,7 +1734,7 @@ def _add_slot_ui(page, nominations_url, shots_dir):
     _select_option_flexible(modal.locator("select[name='trailerType']").nth(0),  "Type 1");   _ws()
     _select_option_flexible(modal.locator("select[name='transferType']").nth(0),   "Drop-Off"); _ws()
     _select_option_flexible(modal.locator("select[name='trailerType']").nth(1),  "Type 1");   _ws()
-    _select_option_flexible(modal.locator("select[name='transferType']").nth(1),   "Pick-Up");  _ws()
+    _select_option_flexible(modal.locator("select[name='transferType']").nth(1),   "Pickup");  _ws()
     page.screenshot(path=str(shots_dir / "04_filled.png"))
 
     try:

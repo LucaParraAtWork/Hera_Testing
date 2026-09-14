@@ -321,10 +321,11 @@ def _detect_import_result(page, modal) -> tuple[str, str]:
 
 def _ask(tc_id: str, desc: str, expect: str,
          auto: str = "?", reason: str = "",
-         index: int | None = None, total: int | None = None) -> tuple[str, str]:
+         index: int | None = None, total: int | None = None,
+         csv_path=None) -> tuple[str, str]:
     return ask_verdict(
         tc_id=tc_id, title=desc, expect=expect, auto=auto, reason=reason,
-        index=index, total=total, excel_id=tc_id,
+        index=index, total=total, excel_id=tc_id, csv_path=csv_path,
     )
 
 
@@ -491,7 +492,8 @@ def main():
                 print(f"  Screenshot: {screenshot}")
                 result, notes = _ask(tc["id"], tc["desc"], tc["expect"],
                                      auto=auto_result, reason=auto_reason,
-                                     index=idx, total=len(TEST_CASES))
+                                     index=idx, total=len(TEST_CASES),
+                                     csv_path=csv_path)
             except Exception as exc:
                 print(f"  ERROR during import: {exc}")
                 screenshot = ""

@@ -417,11 +417,13 @@ def _detect_success_toast_only(page, modal) -> tuple[str, str]:
 
 def _ask(tc_id: str, desc: str, expect: str,
          auto: str = "?", reason: str = "",
-         index: int | None = None, total: int | None = None) -> tuple[str, str]:
+         index: int | None = None, total: int | None = None,
+         csv_path=None) -> tuple[str, str]:
     """Show auto-detected result; let the user confirm or override."""
     return ask_verdict(
         tc_id=tc_id, title=desc, expect=expect, auto=auto, reason=reason,
         index=index, total=total, excel_id=_excel_ids_for(tc_id) or tc_id,
+        csv_path=csv_path,
     )
 
 
@@ -677,7 +679,8 @@ def main():
                 print(f"  Screenshot saved: {screenshot}")
                 result, notes = _ask(tc["id"], tc["desc"], tc["expect"],
                                      auto=auto_result, reason=auto_reason,
-                                     index=idx, total=len(TEST_CASES))
+                                     index=idx, total=len(TEST_CASES),
+                                     csv_path=csv_path)
             except Exception as exc:
                 print(f"  ERROR during import: {exc}")
                 screenshot = ""
