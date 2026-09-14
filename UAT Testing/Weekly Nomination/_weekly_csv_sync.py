@@ -152,15 +152,15 @@ def ensure_next_week(quiet: bool = False) -> tuple[int, int, int, int]:
               f"shifting {delta.days:+d} day(s) and renaming to reach next "
               f"week ({target_week}/{target_year})...")
 
-    touched = 0
+    # Old filenames on disk were never ISO-calendar-safe (they're plain
+    # "base_week + offset" integer labels going back to whenever
+    # _ensure_week36_csvs() first generated the "+1" file) — replicate that
+    # exact naive arithmetic here so we find the files that are actually
+    # there, regardless of the CONTENT date (which may already have drifted
+    # ahead of the filename, as happens the first time this rename-aware
+    # version of the script runs against older files).
+    planned = []
     for prefix, suffix, offset, fmt in FAMILY_FILES:
-        # Old filenames on disk were never ISO-calendar-safe (they're plain
-        # "base_week + offset" integer labels going back to whenever
-        # _ensure_week36_csvs() first generated the "+1" file) — replicate
-        # that exact naive arithmetic here so we find the files that are
-        # actually there, regardless of the CONTENT date (which may already
-        # have drifted ahead of the filename, as happens the first time this
-        # rename-aware version of the script runs against older files).
         old_num = old_week + offset
         new_monday = target_monday + timedelta(days=7 * offset)
         new_num = new_monday.isocalendar()[1]
@@ -169,7 +169,20 @@ def ensure_next_week(quiet: bool = False) -> tuple[int, int, int, int]:
         new_path = HERE / f"{prefix}{new_num}{suffix}.csv"
         if not old_path.exists():
             continue
+        planned.append((old_num, fmt, old_path, new_path))
 
+    # The bare "Virya_Nomination_Week<N>.csv" name is shared by both the
+    # base file (offset 0) and the "+1" file (offset 1) -- e.g. shifting
+    # base week 38->39 while the existing "+1" file already sits at 39
+    # (38+1) collides if the base is renamed first (FileExistsError renaming
+    # into a slot the +1 file hasn't vacated yet). Renaming highest
+    # old-week-number first guarantees every slot is vacated before
+    # something else needs to move into it, since a forward week shift
+    # always moves every file to a strictly higher number.
+    planned.sort(key=lambda t: t[0], reverse=True)
+
+    touched = 0
+    for old_num, fmt, old_path, new_path in planned:
         _shift_file(old_path, fmt, delta)
         if old_path != new_path:
             old_path.rename(new_path)
