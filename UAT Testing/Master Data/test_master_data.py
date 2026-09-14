@@ -766,12 +766,21 @@ def _run_ACS_MD_08(page, base_url, shots_dir):
 
 def _run_QUAL_check(page, base_url, shots_dir,
                     section: str, add_btn: str, qual_select_nth: int,
-                    fill_fn=None):
+                    fill_fn=None, date_fill_fn=None):
     """
-    Fill all required fields for a new entity, select 'Qualified', then try to save.
-    PASS = the app correctly raised a validation error (blocked creation as Qualified).
+    Fill all required fields for a new entity, select 'Qualified', fill in
+    every qualification date field the modal then reveals, and try to save.
+    PASS = the app still correctly raised a validation error (blocked
+    creation as Qualified) even with a valid date present -- proving the
+    rejection is really about the "can't create directly as Qualified"
+    business rule, not just a missing-date field underneath it. Without
+    date_fill_fn, a missing date triggers a DIFFERENT, unrelated validation
+    error (the same one ACS_TM_QUAL_04/05 and ACS_TM_TRK_06 test on
+    purpose), so this check would "pass" for the wrong reason.
     FAIL = the app accepted the save (should have blocked it).
     fill_fn(modal) must populate all required fields except the qual state.
+    date_fill_fn(modal), if given, is called right after 'Qualified' is
+    selected, to fill in the date field(s) the modal now shows.
     """
     _goto(page, base_url, section)
     _click_add_btn(page, add_btn)
@@ -786,6 +795,15 @@ def _run_QUAL_check(page, base_url, shots_dir,
             return "?", f"Could not fill required fields: {e}"
 
     _select_option(modal.locator("select").nth(qual_select_nth), text="Qualified")
+    _ws()
+
+    if date_fill_fn:
+        try:
+            date_fill_fn(modal)
+        except Exception as e:
+            _close_dialog(page, modal)
+            return "?", f"Could not fill qualification date(s): {e}"
+
     page.screenshot(path=str(shots_dir / "02_qualified_selected.png"))
 
     _safe_click(page, modal.locator("button", has_text="Save").first, "Save")
@@ -1221,8 +1239,11 @@ def _run_scenario(page, base_url: str, tc: dict, shots_dir: Path) -> tuple[str, 
             except Exception: m.locator("input").nth(1).fill("B")
             _ws()
             _select_option(m.locator("select").first, index=1)
+        def _date_truck_q(m):
+            _type_date(page, m, _today_digits(), input_nth=-1)
         return _run_QUAL_check(page, base_url, shots_dir, "trucks", r"Add New Truck",
-                               qual_select_nth=1, fill_fn=_fill_truck_q)
+                               qual_select_nth=1, fill_fn=_fill_truck_q,
+                               date_fill_fn=_date_truck_q)
     if tc_id == "ACS_TM_QUAL_02":
         def _fill_trailer_q(m):
             sfx = int(time.time()) % 900 + 100
@@ -1236,8 +1257,11 @@ def _run_scenario(page, base_url: str, tc: dict, shots_dir: Path) -> tuple[str, 
             try:    m.locator("input[placeholder='e.g. 32.5']").fill("28.0")
             except Exception: m.locator("input").nth(2).fill("28.0")
             _ws()
+        def _date_trailer_q(m):
+            _type_date(page, m, _today_digits(), input_nth=-1)
         return _run_QUAL_check(page, base_url, shots_dir, "trailers", r"Add New Trailer",
-                               qual_select_nth=2, fill_fn=_fill_trailer_q)
+                               qual_select_nth=2, fill_fn=_fill_trailer_q,
+                               date_fill_fn=_date_trailer_q)
     if tc_id == "ACS_TM_QUAL_03":
         def _fill_driver_q(m):
             sfx = int(time.time()) % 9000 + 1000
@@ -1249,8 +1273,20 @@ def _run_scenario(page, base_url: str, tc: dict, shots_dir: Path) -> tuple[str, 
             _ws()
             m.locator("input[placeholder='e.g. ADR-9876543']").fill(f"ADR-000{sfx}")
             _ws()
+        def _date_driver_q(m):
+            # Driver has two date fields (1st Qualification + Last Validated
+            # Training) -- both must be filled, same pattern as _run_ACS_MD_06.
+            all_inputs = m.locator("input:not([type='hidden'])")
+            all_inputs.nth(-2).click(timeout=3000); _ws()
+            page.keyboard.press("Home"); page.keyboard.press("ArrowLeft"); page.keyboard.press("ArrowLeft")
+            page.keyboard.type(_today_digits(), delay=100); _ws()
+            all_inputs.nth(-1).click(timeout=3000); _ws()
+            page.keyboard.press("Home"); page.keyboard.press("ArrowLeft"); page.keyboard.press("ArrowLeft")
+            page.keyboard.type(_today_digits(), delay=100); _ws()
+            page.keyboard.press("Tab"); _ws()
         return _run_QUAL_check(page, base_url, shots_dir, "drivers", r"Add New Driver",
-                               qual_select_nth=1, fill_fn=_fill_driver_q)
+                               qual_select_nth=1, fill_fn=_fill_driver_q,
+                               date_fill_fn=_date_driver_q)
     if tc_id == "ACS_TM_QUAL_04":  return _run_QUAL_04(page, base_url, shots_dir)
     if tc_id == "ACS_TM_QUAL_05":  return _run_QUAL_05(page, base_url, shots_dir)
     if tc_id in ("ACS_TM_CO_01", "ACS_TM_CO_02", "ACS_TM_CO_03"):
