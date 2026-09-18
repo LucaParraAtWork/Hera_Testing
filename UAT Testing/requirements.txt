@@ -2,3 +2,6 @@ playwright==1.48.0
 python-dotenv==1.0.1
 openpyxl
 python-pptx
+azure-identity
+azure-monitor-query
+pyodbc
