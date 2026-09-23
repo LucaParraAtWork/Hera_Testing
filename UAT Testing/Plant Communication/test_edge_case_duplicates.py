@@ -20,10 +20,13 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-import _paths  # noqa: F401
 import db_check
 from broker_client import PlantBrokerClient
+from config import resolve_env
 import steps as S
+
+ENV = ""   # "DEV" | "TEST" | "TEST_BIS" | ""  (prompt at startup)
+DB_NAME_BY_ENV = {"DEV": "heraplantdatabasedev", "TEST": "heraplantdatabasetest"}
 
 FINDINGS_FILE = Path(__file__).resolve().parent / "findings_duplicates.txt"
 STEP_DELAY_S = 0.4
@@ -105,10 +108,11 @@ def scenario_duplicate_rfid(client: PlantBrokerClient, conn, bay: int, out: list
 
 
 def main() -> None:
-    conn = db_check.connect("heraplantdatabasetest")
-    out: list[str] = [f"Duplicate-signal observation run -- {_now_utc().isoformat()}"]
+    env = resolve_env(ENV)
+    conn = db_check.connect(DB_NAME_BY_ENV.get(env, "heraplantdatabasetest"))
+    out: list[str] = [f"Duplicate-signal observation run -- {_now_utc().isoformat()} (env={env})"]
 
-    with PlantBrokerClient(env="TEST") as client:
+    with PlantBrokerClient(env=env) as client:
         scenario_duplicate_operating_mode(client, conn, bay=4, out=out)
         scenario_duplicate_acs_completed(client, conn, bay=1, out=out)
         scenario_duplicate_rfid(client, conn, bay=2, out=out)

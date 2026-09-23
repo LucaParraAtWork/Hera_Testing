@@ -30,10 +30,8 @@ phase.
 
 Everything this script needs lives in this same folder (the fake-plant
 sender: signal_catalog.py, steps.py, broker_client.py, config.py,
-envelope.py; the DB-check helpers: db_check.py) except two things pulled in
-via _paths.py / sys.path:
-  - ../Plant Communication - testing/db_common.py  (credentialed DB access
-    -- one shared .env, not duplicated here)
+envelope.py; the DB-check helpers: db_check.py, db_common.py -- one shared
+.env, not duplicated) except one thing pulled in via sys.path:
   - ../uat_excel_reporter.py (ask_verdict / record_results -- the
     project-wide verdict + reporting convention, one level up in UAT Testing/)
   - The full operating_mode -> Movements.EventName mapping and the "one
@@ -76,9 +74,12 @@ to write a reliable assertion without guessing.
 Run
 ---
     py test_signal_reaction.py
-    py test_signal_reaction.py --env DEV
     py test_signal_reaction.py --database heraplantdatabasedev
     py test_signal_reaction.py --from 3
+
+Prompts for the broker environment (DEV/TEST/TEST_BIS) at startup, same
+convention as Weekly Nomination / Scheduled Transfers -- hardcode this
+file's own `ENV = ""` constant (e.g. `ENV = "TEST"`) to skip the prompt.
 """
 from __future__ import annotations
 
@@ -92,10 +93,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import _paths  # noqa: F401
 import db_check
 from broker_client import PlantBrokerClient
-from config import ENV_CHOICES, DEFAULT_ENV
+from config import resolve_env
 from envelope import build_envelope
 from signal_catalog import SIGNALS, OPERATING_MODE_EVENT_NAME
 from steps import build_acs_event_payload, build_rfid_trailer_details_payload
@@ -108,6 +108,8 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 HERE = Path(__file__).resolve().parent
+
+ENV = ""   # "DEV" | "TEST" | "TEST_BIS" | ""  (prompt at startup)
 
 # Known, confirmed gap -- see PLANT_SIGNALS_CATALOG.md §8. Tracked and
 # reported, but excluded from SIG_REACT_01's auto-detected result.
@@ -489,10 +491,9 @@ def run_sig_react_04(client: PlantBrokerClient, conn) -> tuple[str, str]:
 # --------------------------------------------------------------------------
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--env", choices=ENV_CHOICES, default=DEFAULT_ENV,
-                         help="Broker environment to publish to (default: %(default)s)")
     parser.add_argument("--database", default=None,
-                         help="Override the DB to check against (default: inferred from --env)")
+                         help="Override the DB to check against (default: inferred from the "
+                              "chosen environment)")
     parser.add_argument("--from", dest="start_from", type=int, default=1, metavar="N",
                          help="Resume from scenario N (1-based).")
     parser.add_argument("--excel", default=None, metavar="PATH",
@@ -501,15 +502,16 @@ def main() -> int:
     args = parser.parse_args()
     start_from = max(1, args.start_from)
 
-    database = args.database or DB_NAME_BY_ENV.get(args.env, "heraplantdatabasetest")
+    env = resolve_env(ENV)
+    database = args.database or DB_NAME_BY_ENV.get(env, "heraplantdatabasetest")
 
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir = HERE / "test_artifacts_signal_reaction" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"\n{'='*70}")
-    print("  Plant Communication - Signal Testing -- does Hera correctly capture plant signals?")
-    print(f"  Broker env    : {args.env}")
+    print("  Plant Communication -- does Hera correctly capture plant signals?")
+    print(f"  Broker env    : {env}")
     print(f"  Database      : {database}")
     print(f"  Scenarios     : {len(SCENARIOS)}  (from #{start_from})")
     print(f"  Run ID        : {run_id}")
@@ -525,7 +527,7 @@ def main() -> int:
         "SIG_REACT_04": run_sig_react_04,
     }
 
-    with PlantBrokerClient(env=args.env) as client:
+    with PlantBrokerClient(env=env) as client:
         print(f"\n  Connected to broker {client.cfg['mqtt_host']} as {client.cfg['mqtt_user']}\n")
 
         for sc in SCENARIOS:

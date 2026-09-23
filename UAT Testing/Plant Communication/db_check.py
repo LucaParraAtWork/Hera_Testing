@@ -3,8 +3,8 @@ Poll heraplantdatabasetest (or dev) for the row(s) a just-sent plant signal
 should have produced. MQTT ingestion isn't instantaneous, so every check
 here retries for up to `timeout_s` instead of doing a single SELECT.
 
-Read-only. Uses the same credentialed connection as
-"../Plant Communication - testing/db_common.py".
+Read-only. Uses the same credentialed connection as `db_common.py` (same
+folder).
 """
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-import _paths  # noqa: F401  (sets up sys.path for the line below)
 import db_common
 
 

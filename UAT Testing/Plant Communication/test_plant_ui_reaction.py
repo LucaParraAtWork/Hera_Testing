@@ -3,7 +3,7 @@
 """
 test_plant_ui_reaction.py
 ==========================
-Phase 3 of "Plant Communication - Signal Testing": given a signal already
+Phase 3 of "Plant Communication": given a signal already
 confirmed (by test_signal_reaction.py) to land correctly in Hera's own
 database, does it ALSO show up correctly on Hera's own Plant Supervision
 screen -- https://<env>.azurewebsites.net/plant-supervision/plant-state,
@@ -22,19 +22,15 @@ listeners) is attached in PLANT_UI_01, BEFORE any signal is sent by any
 later scenario in this run. Do not reorder the scenarios or add a new one
 that sends a signal before PLANT_UI_01 has run.
 
-NOT YET RUN LIVE. Everything DOM-selector-related in ui_capture.py was
-written from the tester's own description of the screen, not from reading
-the real markup -- same honesty convention as
-"Plant Communication - testing/test_bay_occupancy_vs_hera.py", which
-carries the same "NOT YET RUN LIVE" flag for the same reason (Claude's own
-tool sandbox has no real interactive stdin, so it cannot itself sit through
-the manual MFA login this script requires -- someone needs to run this from
-an actual terminal). Expect `ui_capture.read_grid_after_heading()` in
-particular to need adjustment after the first real run -- if the MQTT
-Stream panels are 3rd-party grid components (MUI DataGrid / ag-grid /
-similar) rather than plain <table> markup or a standard ARIA grid, its
-current two lookup strategies may find nothing and will need a third
-tailored to whatever the real DevTools inspector shows.
+RUN LIVE, 2026-09-17 (--env test): all 4 scenarios confirmed against the
+real screen -- see README.md's "Phase 3" section for the full writeup,
+including the real frontend bug PLANT_UI_04 found. Originally written
+"NOT YET RUN LIVE", same honesty convention `test_bay_occupancy_vs_hera.py`
+(same folder) still carries for the same reason (Claude's own tool sandbox
+has no real interactive stdin, so it cannot itself sit through the manual
+MFA login this script requires -- someone needs to run this from an actual
+terminal) -- kept here only as a record of that convention, not as this
+script's current status.
 
 Also unresolved, deliberately, per the same task brief: whether the live
 updates ride over a WebSocket frame this script can actually parse, or
@@ -69,8 +65,12 @@ Scenarios
 Run
 ---
     py test_plant_ui_reaction.py
-    py test_plant_ui_reaction.py --env dev
     py test_plant_ui_reaction.py --from 2
+
+Prompts for the Hera env (dev/test, same env for the matching MQTT broker)
+at startup, same convention as Weekly Nomination / Scheduled Transfers --
+hardcode this file's own `ENV = ""` constant (e.g. `ENV = "test"`) to skip
+the prompt.
 """
 from __future__ import annotations
 
@@ -84,7 +84,6 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-import _paths  # noqa: F401 -- kept for parity with test_signal_reaction.py's import shape
 import ui_capture as ui
 from broker_client import PlantBrokerClient
 from envelope import build_envelope
@@ -105,6 +104,7 @@ import test_scheduled_transfers_profiles as sched_mod  # noqa: E402
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
+ENV = ""   # "dev" | "test" | ""  (prompt at startup)
 ENV_TO_BROKER = {"dev": "DEV", "test": "TEST"}
 
 BAY_FILL_RATE = 2
@@ -360,8 +360,6 @@ def run_plant_ui_04(page, client: PlantBrokerClient, console_cap: ui.ConsoleCapt
 # --------------------------------------------------------------------------
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--env", choices=["dev", "test"], default="test",
-                         help="Hera web env AND matching MQTT broker env (default: %(default)s)")
     parser.add_argument("--from", dest="start_from", type=int, default=1, metavar="N",
                          help="Resume from scenario N (1-based). NOTE: capture is normally "
                               "attached in scenario 1 -- resuming past it attaches capture "
@@ -374,16 +372,20 @@ def main() -> int:
     args = parser.parse_args()
     start_from = max(1, args.start_from)
 
-    base_url = sched_mod.ENVIRONMENTS[args.env]
-    broker_env = ENV_TO_BROKER[args.env]
+    env = ENV.strip().lower()
+    if env not in sched_mod.ENVIRONMENTS:
+        env, base_url = sched_mod._resolve_env()
+    else:
+        base_url = sched_mod.ENVIRONMENTS[env]
+    broker_env = ENV_TO_BROKER[env]
 
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir = HERE / "test_artifacts_plant_ui_reaction" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"\n{'='*70}")
-    print("  Plant Communication - Signal Testing -- Phase 3: does it show up on Hera's own screen?")
-    print(f"  Hera env      : {args.env}  ({base_url})")
+    print("  Plant Communication -- Phase 3: does it show up on Hera's own screen?")
+    print(f"  Hera env      : {env}  ({base_url})")
     print(f"  Broker env    : {broker_env}")
     print(f"  Scenarios     : {len(SCENARIOS)}  (from #{start_from})")
     print(f"  Run ID        : {run_id}")

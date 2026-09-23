@@ -2,10 +2,10 @@
 Broker configuration (DEV / TEST / TEST_BIS).
 
 Standalone copy of the same environments already used by
-`../Plant Communication - sending/config.py` (which itself mirrors
-hera-virtual-plant's own config.py). Kept as a separate copy on purpose: this
-folder must work even after hera-virtual-plant stops existing (see README.md)
--- it has no import dependency on that repo or on the "sending" folder.
+`dashboard/config.py` (which itself mirrors hera-virtual-plant's own
+config.py). Kept as a separate copy on purpose: this folder must work even
+after hera-virtual-plant stops existing (see README.md) -- it has no import
+dependency on that repo or on the dashboard subfolder.
 """
 
 from __future__ import annotations
@@ -59,3 +59,23 @@ def get_config(env: str | None = None) -> dict[str, str | int]:
     if key not in ENVIRONMENTS:
         raise ValueError(f"Unknown environment {env!r}; expected one of {', '.join(ENV_CHOICES)}")
     return ENVIRONMENTS[key]  # type: ignore[return-value]
+
+
+def resolve_env(default: str = "") -> EnvName:
+    """Prompt for a broker environment if `default` is blank/invalid,
+    matching this project's established `ENV = ""` + interactive-prompt
+    convention (see Weekly Nomination / Scheduled Transfers' own
+    `_resolve_env()`, and `test_dispatch_vs_hera_profiles.py`'s own copy of
+    the same idiom for the Hera-side env). Callers keep their own
+    module-level `ENV = ""` constant and pass it in here; hardcoding e.g.
+    `ENV = "test"` in a script skips the prompt on every run of that file."""
+    env = default.strip().upper()
+    if env in ENVIRONMENTS:
+        return env  # type: ignore[return-value]
+    print("\nSelect broker environment:")
+    for i, key in enumerate(ENV_CHOICES, 1):
+        print(f"  {i}. {key}  ({ENVIRONMENTS[key]['label']})")
+    while True:
+        choice = input(f"Enter 1-{len(ENV_CHOICES)}: ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(ENV_CHOICES):
+            return ENV_CHOICES[int(choice) - 1]

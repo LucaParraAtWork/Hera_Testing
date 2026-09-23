@@ -24,10 +24,13 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-import _paths  # noqa: F401
 import db_check
 from broker_client import PlantBrokerClient
+from config import resolve_env
 import steps as S
+
+ENV = ""   # "DEV" | "TEST" | "TEST_BIS" | ""  (prompt at startup)
+DB_NAME_BY_ENV = {"DEV": "heraplantdatabasedev", "TEST": "heraplantdatabasetest"}
 
 FINDINGS_FILE = Path(__file__).resolve().parent / "findings_skipped_step.txt"
 STEP_DELAY_S = 0.4
@@ -96,10 +99,11 @@ def scenario_skip_fill_readings(bay: int) -> list[S.Step]:
 
 
 def main() -> None:
-    conn = db_check.connect("heraplantdatabasetest")
-    out: list[str] = [f"Skipped-step observation run -- {_now_utc().isoformat()}"]
+    env = resolve_env(ENV)
+    conn = db_check.connect(DB_NAME_BY_ENV.get(env, "heraplantdatabasetest"))
+    out: list[str] = [f"Skipped-step observation run -- {_now_utc().isoformat()} (env={env})"]
 
-    with PlantBrokerClient(env="TEST") as client:
+    with PlantBrokerClient(env=env) as client:
         _run_and_dump(client, conn, "Scenario 1: skip operating_mode=2 (bay 1)",
                       scenario_skip_mode2(1), out)
         _run_and_dump(client, conn, "Scenario 2: skip the ACS entry pair entirely (bay 2)",

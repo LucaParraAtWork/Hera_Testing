@@ -117,7 +117,12 @@ def dropoff(bay: int, license_plate: str, trailer_num: int = 1) -> list[Step]:
 
 
 def filling(bay: int, flowmeter_values_gs: list[float]) -> list[Step]:
-    """Modes 4 -> 5 -> 6, N x fill_rate_meas readings, then 8 -> 9 -> 10."""
+    """Modes 4 -> 5 -> 6, N x fill_rate_meas readings, then 8 -> 9 -> 10.
+
+    Mode 7 is deliberately never sent -- confirmed absent from
+    hera-virtual-plant's own source (2026-09-23 investigation, see
+    bay_occupancy_happy_path memory), not an oversight here.
+    """
     mode_sig = get_signal("operating_mode")
     fill_sig = get_signal("fill_rate_meas")
     steps = [
@@ -137,7 +142,20 @@ def filling(bay: int, flowmeter_values_gs: list[float]) -> list[Step]:
 
 
 def pickup(bay: int, license_plate: str, trailer_num: int = 2) -> list[Step]:
-    """Mode 11 -> RFID_trailer_details -> Mode 12 -> Mode 0."""
+    """Mode 11 -> RFID_trailer_details -> Mode 12 -> Mode 0.
+
+    The mode-number comments below (11="Pickup created", etc.) are
+    hera-virtual-plant's OWN internal naming for each mode, confirmed
+    against that repo's source. Hera's own Bay Occupancy Schedule UI shows
+    DIFFERENT labels for these same signals -- confirmed live, 2026-09-23,
+    by correlating actual send timestamps against the real screen (see
+    bay_monitoring_capture.BAY_OCCUPATION_CHECKLIST for the full mapping):
+    mode 9 -> no observable effect at all; mode 10 -> "PICK-UP START";
+    mode 11 (+ this function's own RFID send) -> "DISCONNECTED"; mode 12 ->
+    "VEHICLE LEAVING" (matches); this function's own final mode 0 ->
+    "PICK-UP END". Both vocabularies are correct facts about the same
+    signals -- don't "fix" one to match the other.
+    """
     mode_sig = get_signal("operating_mode")
     rfid_sig = get_signal("rfid_trailer_details")
     return [
